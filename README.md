@@ -1,6 +1,6 @@
 ﻿# gwen_app
 
-SOC0 beauty super app built with Flutter. This repo contains a modular feature-based architecture with Riverpod state management, GoRouter navigation, and a scalable UI foundation.
+Gwen beauty super app built with Flutter. This repo contains a modular feature-based architecture with Riverpod state management, GoRouter navigation, and a scalable UI foundation.
 
 ## Highlights
 - Feature modules: auth, home, product, cart, review, newsfeed, profile, wishlist, orders
