@@ -1,17 +1,29 @@
-# gwen_app
+﻿# gwen_app
 
-A new Flutter project.
+SOC0 beauty super app built with Flutter. This repo contains a modular feature-based architecture with Riverpod state management, GoRouter navigation, and a scalable UI foundation.
 
-## Getting Started
+## Highlights
+- Feature modules: auth, home, product, cart, review, newsfeed, profile, wishlist, orders
+- Riverpod for state management
+- GoRouter for navigation
+- Reusable UI components and shimmer loaders
 
-This project is a starting point for a Flutter application.
+## Quick Start
+```bash
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Structure
+```text
+lib/
+  core/
+  shared/
+  features/
+  router/
+  main.dart
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Notes
+- Dummy data is used for UI scaffolding.
+- Replace with API integration when ready.
