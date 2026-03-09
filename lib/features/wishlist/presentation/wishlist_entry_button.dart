@@ -1,7 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../home/presentation/home_providers.dart';
 import 'wishlist_providers.dart';
 
 class WishlistEntryButton extends ConsumerWidget {

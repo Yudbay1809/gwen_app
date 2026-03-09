@@ -1,6 +1,6 @@
 {
-    "name": "gwen_app",
-    "short_name": "gwen_app",
+    "name": "GWEN Beauty",
+    "short_name": "GWEN Beauty",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -1,4 +1,6 @@
-﻿import 'package:riverpod/riverpod.dart';
+import 'dart:convert';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../shared/models/product.dart';
 import '../../../shared/models/category.dart';
 import '../../../shared/models/brand.dart';
@@ -28,6 +30,40 @@ class HomeData {
         ...newArrivals,
         ...exclusive,
       ];
+
+  Map<String, dynamic> toJson() {
+    return {
+      'bannerImages': bannerImages,
+      'categories': categories.map((e) => e.toJson()).toList(),
+      'brands': brands.map((e) => e.toJson()).toList(),
+      'flashSale': flashSale.map((e) => e.toJson()).toList(),
+      'bestSeller': bestSeller.map((e) => e.toJson()).toList(),
+      'newArrivals': newArrivals.map((e) => e.toJson()).toList(),
+      'exclusive': exclusive.map((e) => e.toJson()).toList(),
+    };
+  }
+
+  factory HomeData.fromJson(Map<String, dynamic> json) {
+    return HomeData(
+      bannerImages: List<String>.from(json['bannerImages'] as List),
+      categories: (json['categories'] as List)
+          .map((e) => Category.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      brands: (json['brands'] as List).map((e) => Brand.fromJson(e as Map<String, dynamic>)).toList(),
+      flashSale: (json['flashSale'] as List)
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      bestSeller: (json['bestSeller'] as List)
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      newArrivals: (json['newArrivals'] as List)
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      exclusive: (json['exclusive'] as List)
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }
 
 final homeDataProvider = Provider<HomeData>((ref) {
@@ -98,14 +134,105 @@ final homeDataProvider = Provider<HomeData>((ref) {
   );
 });
 
+class _HomeCache {
+  static const _key = 'home_cache_v1';
+
+  static Future<HomeData?> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key);
+    if (raw == null) return null;
+    try {
+      final jsonMap = jsonDecode(raw) as Map<String, dynamic>;
+      return HomeData.fromJson(jsonMap);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> save(HomeData data) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, jsonEncode(data.toJson()));
+  }
+}
+
 final homeLoadProvider = FutureProvider<HomeData>((ref) async {
+  final cached = await _HomeCache.load();
+  if (cached != null) return cached;
   await Future.delayed(const Duration(milliseconds: 600));
-  return ref.read(homeDataProvider);
+  final data = ref.read(homeDataProvider);
+  await _HomeCache.save(data);
+  return data;
 });
+
+enum HomeAllProductsFilter { all, promo, best, newest }
+
+class HomeAllProductsFilterState {
+  final HomeAllProductsFilter filter;
+  final String query;
+
+  const HomeAllProductsFilterState({required this.filter, required this.query});
+
+  HomeAllProductsFilterState copyWith({HomeAllProductsFilter? filter, String? query}) {
+    return HomeAllProductsFilterState(
+      filter: filter ?? this.filter,
+      query: query ?? this.query,
+    );
+  }
+}
+
+class HomeAllProductsFilterNotifier extends Notifier<HomeAllProductsFilterState> {
+  static const keyFilter = 'home_all_filter';
+  static const keyQuery = 'home_all_query';
+
+  @override
+  HomeAllProductsFilterState build() {
+    _load();
+    return const HomeAllProductsFilterState(filter: HomeAllProductsFilter.all, query: '');
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rawFilter = prefs.getString(keyFilter);
+    final rawQuery = prefs.getString(keyQuery) ?? '';
+    final filter = HomeAllProductsFilter.values.firstWhere(
+      (e) => e.name == rawFilter,
+      orElse: () => HomeAllProductsFilter.all,
+    );
+    state = state.copyWith(filter: filter, query: rawQuery);
+  }
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(keyFilter, state.filter.name);
+    await prefs.setString(keyQuery, state.query);
+  }
+
+  void setFilter(HomeAllProductsFilter filter) {
+    state = state.copyWith(filter: filter);
+    _save();
+  }
+
+  void setQuery(String query) {
+    state = state.copyWith(query: query);
+    _save();
+  }
+
+  void reset() {
+    state = const HomeAllProductsFilterState(filter: HomeAllProductsFilter.all, query: '');
+    _save();
+  }
+}
+
+final homeAllProductsFilterProvider =
+    NotifierProvider<HomeAllProductsFilterNotifier, HomeAllProductsFilterState>(
+  HomeAllProductsFilterNotifier.new,
+);
 
 class SearchQueryNotifier extends Notifier<String> {
   @override
   String build() => '';
+
+  void setQuery(String value) => state = value;
 }
 
 final searchQueryProvider = NotifierProvider<SearchQueryNotifier, String>(SearchQueryNotifier.new);
@@ -116,6 +243,93 @@ final searchResultsProvider = Provider<List<Product>>((ref) {
   if (query.isEmpty) return data.allProducts;
   return data.allProducts.where((p) => p.name.toLowerCase().contains(query)).toList();
 });
+
+class HomeInfiniteProductsState {
+  final List<Product> items;
+  final bool isLoading;
+  final int nextStartId;
+  final int page;
+  final bool hasMore;
+  final Set<int> lastBatchIds;
+
+  const HomeInfiniteProductsState({
+    required this.items,
+    required this.isLoading,
+    required this.nextStartId,
+    required this.page,
+    required this.hasMore,
+    required this.lastBatchIds,
+  });
+
+  HomeInfiniteProductsState copyWith({
+    List<Product>? items,
+    bool? isLoading,
+    int? nextStartId,
+    int? page,
+    bool? hasMore,
+    Set<int>? lastBatchIds,
+  }) {
+    return HomeInfiniteProductsState(
+      items: items ?? this.items,
+      isLoading: isLoading ?? this.isLoading,
+      nextStartId: nextStartId ?? this.nextStartId,
+      page: page ?? this.page,
+      hasMore: hasMore ?? this.hasMore,
+      lastBatchIds: lastBatchIds ?? this.lastBatchIds,
+    );
+  }
+}
+
+class HomeInfiniteProductsNotifier extends Notifier<HomeInfiniteProductsState> {
+  static const int _pageSize = 10;
+  static const int _maxPages = 5;
+
+  @override
+  HomeInfiniteProductsState build() {
+    final base = ref.read(homeDataProvider).allProducts;
+    return HomeInfiniteProductsState(
+      items: base,
+      isLoading: false,
+      nextStartId: 1000,
+      page: 1,
+      hasMore: true,
+      lastBatchIds: const {},
+    );
+  }
+
+  Future<void> loadMore() async {
+    if (state.isLoading || !state.hasMore) return;
+    if (state.page >= _maxPages) {
+      state = state.copyWith(hasMore: false);
+      return;
+    }
+    state = state.copyWith(isLoading: true);
+    await Future.delayed(const Duration(milliseconds: 350));
+    final data = ref.read(homeDataProvider);
+    final next = _dummyProducts(
+      _pageSize,
+      startId: state.nextStartId,
+      categoryCount: data.categories.length,
+      brandCount: data.brands.length,
+      priceBase: 160000 + (state.nextStartId % 5) * 15000,
+      discountPct: 0.1 + (state.nextStartId % 3) * 0.05,
+    );
+    final nextHasMore = next.isNotEmpty;
+    state = state.copyWith(
+      items: [...state.items, ...next],
+      isLoading: false,
+      nextStartId: state.nextStartId + next.length,
+      page: state.page + 1,
+      hasMore: nextHasMore,
+      lastBatchIds: next.map((e) => e.id).toSet(),
+    );
+  }
+}
+
+final homeInfiniteProductsProvider =
+    NotifierProvider<HomeInfiniteProductsNotifier, HomeInfiniteProductsState>(
+  HomeInfiniteProductsNotifier.new,
+);
 
 List<Product> _dummyProducts(
   int count, {
@@ -140,6 +354,7 @@ List<Product> _dummyProducts(
       reviewCount: 120 + i * 3,
       categoryId: categoryId,
       brandId: brandId,
+      stock: (i % 4 == 0) ? 0 : (10 - (i % 5)),
     );
   });
 }

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ArticleBookmarkNotifier extends Notifier<Set<int>> {
   static const _storageKey = 'article_bookmarks';
+  static const _seedKey = 'article_bookmarks_seeded';
 
   @override
   Set<int> build() {
@@ -12,8 +13,19 @@ class ArticleBookmarkNotifier extends Notifier<Set<int>> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_storageKey) ?? [];
+    final raw = prefs.getStringList(_storageKey);
+    if (raw == null) {
+      await _seed(prefs);
+      return;
+    }
     state = raw.map(int.parse).toSet();
+  }
+
+  Future<void> _seed(SharedPreferences prefs) async {
+    if (prefs.getBool(_seedKey) == true) return;
+    state = {1, 4};
+    await _save();
+    await prefs.setBool(_seedKey, true);
   }
 
   Future<void> _save() async {

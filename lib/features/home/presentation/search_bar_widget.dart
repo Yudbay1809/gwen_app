@@ -8,17 +8,30 @@ class SearchBarWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: TextField(
-        readOnly: true,
-        onTap: () => context.go('/search'),
-        decoration: InputDecoration(
-          hintText: 'Search skincare, makeup, fragrance...',
-          prefixIcon: const Icon(Icons.search),
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(15),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: TextField(
+          readOnly: true,
+          onTap: () => context.go('/search'),
+          decoration: InputDecoration(
+            hintText: 'Search skincare, makeup, fragrance...',
+            prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
       ),

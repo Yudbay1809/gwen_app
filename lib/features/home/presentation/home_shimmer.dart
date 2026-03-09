@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../shared/widgets/shimmer_loader.dart';
 import 'section_header.dart';
 
@@ -28,8 +28,8 @@ class HomeShimmer extends StatelessWidget {
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               scrollDirection: Axis.horizontal,
-              itemBuilder: (_, __) => const SizedBox(width: 160, child: ShimmerLoader(height: 200)),
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) => const SizedBox(width: 160, child: ShimmerLoader(height: 200)),
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemCount: 4,
             ),
           ),
@@ -39,8 +39,8 @@ class HomeShimmer extends StatelessWidget {
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               scrollDirection: Axis.horizontal,
-              itemBuilder: (_, __) => const SizedBox(width: 160, child: ShimmerLoader(height: 200)),
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) => const SizedBox(width: 160, child: ShimmerLoader(height: 200)),
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemCount: 4,
             ),
           ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../home/presentation/home_providers.dart';
 import '../../../shared/widgets/product_card.dart';
+import '../../cart/presentation/cart_providers.dart';
 
 enum SectionType { promo, bestSeller, newArrivals }
 
@@ -47,6 +48,7 @@ class SectionListScreen extends ConsumerWidget {
           return ProductCard(
             product: product,
             onTap: () => context.go('/product/${product.id}'),
+            onAdd: () => ref.read(cartProvider.notifier).add(product),
           );
         },
       ),

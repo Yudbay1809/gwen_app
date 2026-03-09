@@ -1,25 +1,34 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/models/product.dart';
 import '../../../shared/widgets/product_card.dart';
 import 'section_header.dart';
+import '../../cart/presentation/cart_providers.dart';
 
-class ExclusiveProductsSection extends StatelessWidget {
+class ExclusiveProductsSection extends ConsumerWidget {
   final List<Product> products;
   final VoidCallback? onSeeAll;
 
   const ExclusiveProductsSection({super.key, required this.products, this.onSeeAll});
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SectionHeader(title: 'Exclusive Products', onSeeAll: onSeeAll),
         SizedBox(
           height: 260,
           child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             scrollDirection: Axis.horizontal,
             itemBuilder: (context, index) {
               final product = products[index];
@@ -28,14 +37,16 @@ class ExclusiveProductsSection extends StatelessWidget {
                 child: ProductCard(
                   product: product,
                   onTap: () => context.go('/product/${product.id}'),
+                  onAdd: () => ref.read(cartProvider.notifier).add(product),
                 ),
               );
             },
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemCount: products.length,
           ),
         ),
       ],
+    ),
     );
   }
 }

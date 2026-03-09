@@ -1,4 +1,4 @@
-package com.example.gwen_app
+package com.gwen.beauty
 
 import io.flutter.embedding.android.FlutterActivity
 

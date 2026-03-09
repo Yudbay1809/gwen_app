@@ -10,6 +10,7 @@ class Product extends Equatable {
   final int reviewCount;
   final int categoryId;
   final int brandId;
+  final int stock;
 
   const Product({
     required this.id,
@@ -21,6 +22,7 @@ class Product extends Equatable {
     required this.reviewCount,
     required this.categoryId,
     required this.brandId,
+    required this.stock,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -34,6 +36,7 @@ class Product extends Equatable {
       reviewCount: json['reviewCount'] as int,
       categoryId: json['categoryId'] as int,
       brandId: json['brandId'] as int,
+      stock: (json['stock'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -48,6 +51,7 @@ class Product extends Equatable {
       'reviewCount': reviewCount,
       'categoryId': categoryId,
       'brandId': brandId,
+      'stock': stock,
     };
   }
 
@@ -62,5 +66,6 @@ class Product extends Equatable {
         reviewCount,
         categoryId,
         brandId,
+        stock,
       ];
 }

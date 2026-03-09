@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../shared/models/brand.dart';
 import 'section_header.dart';
@@ -29,7 +29,7 @@ class BrandCarousel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
+                      color: Colors.black.withAlpha(15),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -60,7 +60,7 @@ class BrandCarousel extends StatelessWidget {
                 ),
               );
             },
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
             itemCount: brands.length,
           ),
         ),

@@ -7,6 +7,9 @@ import '../../../shared/widgets/product_card.dart';
 import '../../../shared/widgets/cart_badge_button.dart';
 import 'product_filter_sheet.dart';
 import 'product_grid_shimmer.dart';
+import 'product_compare_provider.dart';
+import 'product_compare_screen.dart';
+import '../../cart/presentation/cart_providers.dart';
 
 class ProductListScreen extends ConsumerStatefulWidget {
   const ProductListScreen({super.key});
@@ -20,6 +23,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   bool _initialized = false;
   bool _loading = true;
   int _visibleCount = 8;
+  bool _isGrid = true;
   late final ScrollController _controller;
 
   @override
@@ -28,6 +32,10 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     _filter = const ProductFilter(
       sort: ProductSort.recommended,
       priceRange: RangeValues(0, 1000000),
+      minRating: 0,
+      minReviews: 0,
+      inStockOnly: false,
+      discountRange: RangeValues(0, 70),
     );
     _controller = ScrollController()..addListener(_onScroll);
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -72,6 +80,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(homeDataProvider);
+    final compare = ref.watch(productCompareProvider);
 
     final all = data.allProducts;
     final minPrice = all.map((p) => p.discountPrice).reduce((a, b) => a < b ? a : b);
@@ -84,9 +93,21 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
       appBar: AppBar(
         title: const Text('Products'),
         actions: [
+          if (compare.isNotEmpty)
+            TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProductCompareScreen()),
+              ),
+              child: Text('Compare (${compare.length})'),
+            ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: () => _openFilterSheet(context, data, minPrice, maxPrice),
+          ),
+          IconButton(
+            icon: Icon(_isGrid ? Icons.view_list : Icons.grid_view),
+            onPressed: () => setState(() => _isGrid = !_isGrid),
           ),
           const CartBadgeButton(),
         ],
@@ -95,24 +116,75 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
         onRefresh: _onRefresh,
         child: _loading
             ? const ProductGridShimmer()
-            : GridView.builder(
-                controller: _controller,
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.62,
-                ),
-                itemCount: visible.length,
-                itemBuilder: (context, index) {
-                  final product = visible[index];
-                  return ProductCard(
-                    product: product,
-                    onTap: () => context.go('/product/${product.id}'),
-                  );
-                },
-              ),
+            : _isGrid
+                ? GridView.builder(
+                    controller: _controller,
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 0.62,
+                    ),
+                    itemCount: visible.length,
+                    itemBuilder: (context, index) {
+                      final product = visible[index];
+                      return Stack(
+                        children: [
+                          ProductCard(
+                            product: product,
+                            onTap: () => context.go('/product/${product.id}'),
+                            onAdd: () => ref.read(cartProvider.notifier).add(product),
+                          ),
+                          Positioned(
+                            right: 6,
+                            bottom: 6,
+                            child: IconButton(
+                              icon: Icon(
+                                compare.any((e) => e.id == product.id)
+                                    ? Icons.check_circle
+                                    : Icons.compare,
+                              ),
+                              onPressed: () => ref.read(productCompareProvider.notifier).toggle(product),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  )
+                : ListView.builder(
+                    controller: _controller,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: visible.length,
+                    itemBuilder: (context, index) {
+                      final product = visible[index];
+                      return Card(
+                        child: ListTile(
+                          leading: Image.network(product.image, width: 56, height: 56, fit: BoxFit.cover),
+                          title: Text(product.name),
+                          subtitle: Text('Rp ${product.discountPrice.toStringAsFixed(0)}'),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.add_shopping_cart),
+                                onPressed: () => ref.read(cartProvider.notifier).add(product),
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  compare.any((e) => e.id == product.id)
+                                      ? Icons.check_circle
+                                      : Icons.compare,
+                                ),
+                                onPressed: () => ref.read(productCompareProvider.notifier).toggle(product),
+                              ),
+                            ],
+                          ),
+                          onTap: () => context.go('/product/${product.id}'),
+                        ),
+                      );
+                    },
+                  ),
       ),
     );
   }
@@ -146,11 +218,27 @@ List<Product> _applyFilter({required List<Product> products, required ProductFil
       )
       .toList();
 
+  if (filter.minRating > 0) {
+    result = result.where((p) => p.rating >= filter.minRating).toList();
+  }
+  if (filter.minReviews > 0) {
+    result = result.where((p) => p.reviewCount >= filter.minReviews).toList();
+  }
   if (filter.categoryId != null) {
     result = result.where((p) => p.categoryId == filter.categoryId).toList();
   }
   if (filter.brandId != null) {
     result = result.where((p) => p.brandId == filter.brandId).toList();
+  }
+  if (filter.inStockOnly) {
+    result = result.where((p) => p.stock > 0).toList();
+  }
+  if (filter.discountRange.start > 0 || filter.discountRange.end < 70) {
+    result = result.where((p) {
+      if (p.price <= 0) return false;
+      final pct = ((p.price - p.discountPrice) / p.price) * 100;
+      return pct >= filter.discountRange.start && pct <= filter.discountRange.end;
+    }).toList();
   }
 
   switch (filter.sort) {
@@ -162,6 +250,12 @@ List<Product> _applyFilter({required List<Product> products, required ProductFil
       break;
     case ProductSort.rating:
       result.sort((a, b) => b.rating.compareTo(a.rating));
+      break;
+    case ProductSort.reviews:
+      result.sort((a, b) => b.reviewCount.compareTo(a.reviewCount));
+      break;
+    case ProductSort.newest:
+      result.sort((a, b) => b.id.compareTo(a.id));
       break;
     case ProductSort.recommended:
       break;
