@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'notification_providers.dart';
@@ -13,7 +13,7 @@ class NotificationDetailScreen extends ConsumerWidget {
     final nid = int.tryParse(id);
     final item = nid == null
         ? null
-        : ref.watch(notificationProvider).where((e) => e.id == nid).firstOrNull;
+        : ref.watch(personalizedNotificationProvider).where((e) => e.id == nid).firstOrNull;
 
     if (item == null) {
       return Scaffold(
@@ -23,7 +23,7 @@ class NotificationDetailScreen extends ConsumerWidget {
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
               if (context.canPop()) {
-                context.pop();
+                if (context.canPop()) context.pop();
               } else {
                 context.go('/notifications');
               }
@@ -41,7 +41,7 @@ class NotificationDetailScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
-              context.pop();
+              if (context.canPop()) context.pop();
             } else {
               context.go('/notifications');
             }

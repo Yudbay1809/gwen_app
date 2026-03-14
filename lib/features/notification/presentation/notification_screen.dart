@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
+ï»¿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'notification_providers.dart';
-import '../../../shared/widgets/empty_state.dart';
 
 class NotificationScreen extends ConsumerStatefulWidget {
   const NotificationScreen({super.key});
@@ -13,17 +12,13 @@ class NotificationScreen extends ConsumerStatefulWidget {
 
 class _NotificationScreenState extends ConsumerState<NotificationScreen> {
   NotificationType? _filterType;
-  bool _onlyUnread = false;
-  bool _selectMode = false;
-  final Set<int> _selected = {};
   int _lastCount = 0;
-  bool _digestMode = false;
-  String _query = '';
+  late final ProviderSubscription<List<NotificationItem>> _notifSub;
 
   @override
   void initState() {
     super.initState();
-    ref.listen<List<NotificationItem>>(notificationProvider, (prev, next) {
+    _notifSub = ref.listenManual<List<NotificationItem>>(notificationProvider, (prev, next) {
       if (!mounted) return;
       final prevCount = prev?.length ?? _lastCount;
       if (next.length > prevCount) {
@@ -35,14 +30,10 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
     });
   }
 
-  void _toggleSelection(int id) {
-    setState(() {
-      if (_selected.contains(id)) {
-        _selected.remove(id);
-      } else {
-        _selected.add(id);
-      }
-    });
+  @override
+  void dispose() {
+    _notifSub.close();
+    super.dispose();
   }
 
   @override
@@ -51,148 +42,115 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
     final pinned = ref.watch(pinnedNotificationsProvider);
 
     var filtered = _filterType == null ? items : items.where((n) => n.type == _filterType).toList();
-    if (_onlyUnread) {
-      filtered = filtered.where((n) => !n.isRead).toList();
-    }
-    if (_query.trim().isNotEmpty) {
-      final q = _query.toLowerCase();
-      filtered = filtered
-          .where((n) => n.title.toLowerCase().contains(q) || n.message.toLowerCase().contains(q))
-          .toList();
-    }
+    final unreadOrders = items.where((n) => n.type == NotificationType.orders && !n.isRead).length;
+    final unreadPromo = items.where((n) => n.type == NotificationType.promo && !n.isRead).length;
+    final unreadNews = items.where((n) => n.type == NotificationType.news && !n.isRead).length;
+    final unreadPriceDrops = items.where((n) => n.type == NotificationType.priceDrop && !n.isRead).length;
+    final unreadRewards = items.where((n) => n.type == NotificationType.rewards && !n.isRead).length;
+    final totalUnread = items.where((n) => !n.isRead).length;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: const Text('Notifikasi'),
         actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _selectMode = !_selectMode;
-                if (!_selectMode) _selected.clear();
-              });
-            },
-            child: Text(_selectMode ? 'Cancel' : 'Select', style: const TextStyle(color: Colors.black87)),
-          ),
-          TextButton(
-            onPressed: () => ref.read(notificationProvider.notifier).markAllRead(),
-            child: const Text('Mark all', style: TextStyle(color: Colors.black87)),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => context.go('/notifications/settings'),
           ),
         ],
       ),
       body: Column(
         children: [
+          const SizedBox(height: 8),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search notifications...',
-                prefixIcon: Icon(Icons.search),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Theme.of(context).colorScheme.outline),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 12, offset: const Offset(0, 6)),
+                ],
               ),
-              onChanged: (v) => setState(() => _query = v),
+              child: SizedBox(
+                height: 86,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    _CategoryItem(
+                      icon: Icons.shopping_bag_outlined,
+                      label: 'Pesanan',
+                      selected: _filterType == NotificationType.orders,
+                      badge: unreadOrders,
+                      onTap: () => setState(() => _filterType = NotificationType.orders),
+                    ),
+                    const _CategoryDivider(),
+                    _CategoryItem(
+                      icon: Icons.percent,
+                      label: 'Promo',
+                      selected: _filterType == NotificationType.promo,
+                      badge: unreadPromo,
+                      onTap: () => setState(() => _filterType = NotificationType.promo),
+                    ),
+                    const _CategoryDivider(),
+                    _CategoryItem(
+                      icon: Icons.trending_down,
+                      label: 'Price drop',
+                      selected: _filterType == NotificationType.priceDrop,
+                      badge: unreadPriceDrops,
+                      onTap: () => setState(() => _filterType = NotificationType.priceDrop),
+                    ),
+                    const _CategoryDivider(),
+                    _CategoryItem(
+                      icon: Icons.auto_awesome,
+                      label: 'Rewards',
+                      selected: _filterType == NotificationType.rewards,
+                      badge: unreadRewards,
+                      onTap: () => setState(() => _filterType = NotificationType.rewards),
+                    ),
+                    const _CategoryDivider(),
+                    _CategoryItem(
+                      icon: Icons.event_outlined,
+                      label: 'Event',
+                      selected: _filterType == NotificationType.news,
+                      badge: unreadNews,
+                      onTap: () => setState(() => _filterType = NotificationType.news),
+                    ),
+                    const _CategoryDivider(),
+                    _CategoryItem(
+                      icon: Icons.info_outline,
+                      label: 'Info',
+                      selected: _filterType == null,
+                      badge: totalUnread,
+                      onTap: () => setState(() => _filterType = null),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                const SizedBox(width: 16),
-                ChoiceChip(
-                  label: const Text('All'),
-                  selected: _filterType == null,
-                  onSelected: (_) => setState(() => _filterType = null),
+                const Text('Semua Notifikasi', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => ref.read(notificationProvider.notifier).markAllRead(),
+                  child: const Text('Tandai sudah dibaca'),
                 ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Promo'),
-                  selected: _filterType == NotificationType.promo,
-                  onSelected: (_) => setState(() => _filterType = NotificationType.promo),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Orders'),
-                  selected: _filterType == NotificationType.orders,
-                  onSelected: (_) => setState(() => _filterType = NotificationType.orders),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('News'),
-                  selected: _filterType == NotificationType.news,
-                  onSelected: (_) => setState(() => _filterType = NotificationType.news),
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  label: const Text('Unread'),
-                  selected: _onlyUnread,
-                  onSelected: (v) => setState(() => _onlyUnread = v),
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  label: const Text('Digest'),
-                  selected: _digestMode,
-                  onSelected: (v) => setState(() => _digestMode = v),
-                ),
-                const SizedBox(width: 16),
               ],
             ),
           ),
-          if (_selectMode)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Text('${_selected.length} selected'),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: _selected.isEmpty
-                        ? null
-                        : () {
-                            ref.read(notificationProvider.notifier).markReadIds(_selected);
-                            setState(() => _selected.clear());
-                          },
-                    child: const Text('Mark read'),
-                  ),
-                  TextButton(
-                    onPressed: _selected.isEmpty
-                        ? null
-                        : () {
-                            ref.read(pinnedNotificationsProvider.notifier).toggleMany(_selected, pin: true);
-                            setState(() => _selected.clear());
-                          },
-                    child: const Text('Pin'),
-                  ),
-                  TextButton(
-                    onPressed: _selected.isEmpty
-                        ? null
-                        : () {
-                            ref.read(pinnedNotificationsProvider.notifier).toggleMany(_selected, pin: false);
-                            setState(() => _selected.clear());
-                          },
-                    child: const Text('Unpin'),
-                  ),
-                  TextButton(
-                    onPressed: _selected.isEmpty
-                        ? null
-                        : () {
-                            ref.read(notificationProvider.notifier).deleteIds(_selected);
-                            setState(() => _selected.clear());
-                          },
-                    child: const Text('Delete'),
-                  ),
-                ],
-              ),
-            ),
           Expanded(
             child: filtered.isEmpty
-                ? const EmptyState(
-                    icon: Icons.notifications_none,
-                    title: 'No notifications',
-                    message: 'You are all caught up.',
-                  )
+                ? const _NotificationEmpty()
                 : ListView(
                     padding: const EdgeInsets.all(16),
-                    children:
-                        _digestMode ? _buildDigestList(filtered, pinned) : _buildGroupedList(filtered, pinned),
+                    children: _buildGroupedList(filtered, pinned),
                   ),
           ),
         ],
@@ -215,70 +173,50 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
         ),
       );
       for (final n in entry.value) {
-        final tileColor = n.isRead ? null : Colors.pink.shade50;
-        if (_selectMode) {
-          widgets.add(
-            CheckboxListTile(
-              value: _selected.contains(n.id),
-              onChanged: (_) => _toggleSelection(n.id),
-              title: Text(n.title),
-              subtitle: Text(n.message),
-              secondary: Text(n.time, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              tileColor: tileColor,
-            ),
-          );
-        } else {
-          widgets.add(
-            ListTile(
-              title: Text(n.title),
-              subtitle: Text(n.message),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+        final tileColor = n.isRead
+            ? Theme.of(context).colorScheme.surface
+            : Theme.of(context).colorScheme.primaryContainer;
+        widgets.add(
+          InkWell(
+            onTap: () {
+              ref.read(notificationProvider.notifier).markRead(n.id);
+              context.go('/notifications/${n.id}');
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: tileColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Theme.of(context).colorScheme.outline),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _TypeBubble(type: n.type),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(n.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 4),
+                        Text(n.message, style: const TextStyle(color: Colors.black54)),
+                        const SizedBox(height: 8),
+                        Text(n.time, style: const TextStyle(color: Colors.black45, fontSize: 12)),
+                      ],
+                    ),
+                  ),
                   IconButton(
                     icon: Icon(pinned.contains(n.id) ? Icons.push_pin : Icons.push_pin_outlined, size: 18),
                     onPressed: () => ref.read(pinnedNotificationsProvider.notifier).toggle(n.id),
                   ),
-                  Text(n.time, style: const TextStyle(color: Colors.grey)),
                 ],
               ),
-              tileColor: tileColor,
-              onTap: () {
-                ref.read(notificationProvider.notifier).markRead(n.id);
-                context.go('/notifications/${n.id}');
-              },
             ),
-          );
-        }
-      }
-    }
-    return widgets;
-  }
-
-  List<Widget> _buildDigestList(List<NotificationItem> list, Set<int> pinned) {
-    final groups = <String, List<NotificationItem>>{};
-    for (final n in list) {
-      final key = _groupKey(n.time);
-      groups.putIfAbsent(key, () => []).add(n);
-    }
-    final widgets = <Widget>[];
-    for (final entry in groups.entries) {
-      final items = entry.value;
-      final pinnedCount = items.where((e) => pinned.contains(e.id)).length;
-      final titles = items.take(2).map((e) => e.title).join(' • ');
-      widgets.add(
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.summarize_outlined),
-            title: Text(
-              '${entry.key} · ${items.length} notifications${pinnedCount > 0 ? ' · $pinnedCount pinned' : ''}',
-            ),
-            subtitle: Text(titles),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => setState(() => _digestMode = false),
           ),
-        ),
-      );
+        );
+      }
     }
     return widgets;
   }
@@ -288,5 +226,160 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
     if (t.contains('just') || t.contains('h')) return 'Today';
     if (t.contains('1d')) return 'Yesterday';
     return 'Earlier';
+  }
+}
+
+class _CategoryDivider extends StatelessWidget {
+  const _CategoryDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 36,
+      color: Theme.of(context).colorScheme.outline.withAlpha(120),
+    );
+  }
+}
+
+class _CategoryItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final int badge;
+  final VoidCallback onTap;
+
+  const _CategoryItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.badge,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = selected ? scheme.primary : scheme.primary.withAlpha(160);
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color.withAlpha(80)),
+                ),
+                child: Icon(icon, color: color),
+              ),
+              if (badge > 0)
+                Positioned(
+                  right: -2,
+                  top: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$badge',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+        ],
+      ),
+    );
+  }
+}
+
+class _TypeBubble extends StatelessWidget {
+  final NotificationType type;
+
+  const _TypeBubble({required this.type});
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = switch (type) {
+      NotificationType.orders => Icons.shopping_bag_outlined,
+      NotificationType.promo => Icons.percent,
+      NotificationType.news => Icons.info_outline,
+      NotificationType.priceDrop => Icons.trending_down,
+      NotificationType.rewards => Icons.auto_awesome,
+      NotificationType.restock => Icons.inventory_2_outlined,
+    };
+    final scheme = Theme.of(context).colorScheme;
+    final color = switch (type) {
+      NotificationType.orders => scheme.primary,
+      NotificationType.promo => scheme.secondary,
+      NotificationType.news => scheme.tertiary,
+      NotificationType.priceDrop => Colors.green,
+      NotificationType.rewards => scheme.secondaryContainer,
+      NotificationType.restock => scheme.primaryContainer,
+    };
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: color.withAlpha(24),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: color, size: 18),
+    );
+  }
+}
+
+class _NotificationEmpty extends StatelessWidget {
+  const _NotificationEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 92,
+              height: 92,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                shape: BoxShape.circle,
+                border: Border.all(color: Theme.of(context).colorScheme.outline),
+              ),
+              child: Icon(
+                Icons.notifications_none,
+                size: 44,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Belum ada notifikasi untuk kamu',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Nantikan informasi menarik dari GWEN Beauty di sini.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black54),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

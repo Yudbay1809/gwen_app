@@ -5,6 +5,9 @@ class NotificationSettings {
   final bool promo;
   final bool orders;
   final bool news;
+  final bool priceDrops;
+  final bool restock;
+  final bool rewards;
   final bool sound;
   final bool vibrate;
   final bool quietHours;
@@ -15,6 +18,9 @@ class NotificationSettings {
     required this.promo,
     required this.orders,
     required this.news,
+    required this.priceDrops,
+    required this.restock,
+    required this.rewards,
     required this.sound,
     required this.vibrate,
     required this.quietHours,
@@ -26,6 +32,9 @@ class NotificationSettings {
     bool? promo,
     bool? orders,
     bool? news,
+    bool? priceDrops,
+    bool? restock,
+    bool? rewards,
     bool? sound,
     bool? vibrate,
     bool? quietHours,
@@ -36,6 +45,9 @@ class NotificationSettings {
       promo: promo ?? this.promo,
       orders: orders ?? this.orders,
       news: news ?? this.news,
+      priceDrops: priceDrops ?? this.priceDrops,
+      restock: restock ?? this.restock,
+      rewards: rewards ?? this.rewards,
       sound: sound ?? this.sound,
       vibrate: vibrate ?? this.vibrate,
       quietHours: quietHours ?? this.quietHours,
@@ -52,6 +64,9 @@ class NotificationSettingsNotifier extends Notifier<NotificationSettings> {
       promo: true,
       orders: true,
       news: true,
+      priceDrops: true,
+      restock: true,
+      rewards: true,
       sound: true,
       vibrate: true,
       quietHours: false,
@@ -63,6 +78,9 @@ class NotificationSettingsNotifier extends Notifier<NotificationSettings> {
   void togglePromo(bool v) => state = state.copyWith(promo: v);
   void toggleOrders(bool v) => state = state.copyWith(orders: v);
   void toggleNews(bool v) => state = state.copyWith(news: v);
+  void togglePriceDrops(bool v) => state = state.copyWith(priceDrops: v);
+  void toggleRestock(bool v) => state = state.copyWith(restock: v);
+  void toggleRewards(bool v) => state = state.copyWith(rewards: v);
   void toggleSound(bool v) => state = state.copyWith(sound: v);
   void toggleVibrate(bool v) => state = state.copyWith(vibrate: v);
   void toggleQuietHours(bool v) => state = state.copyWith(quietHours: v);

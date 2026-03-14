@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'review_providers.dart';
@@ -26,6 +26,7 @@ class _ReviewDetailScreenState extends ConsumerState<ReviewDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final review = ref.watch(reviewFeedProvider).where((r) => r.id == widget.id).firstOrNull;
     if (review == null) {
       return Scaffold(
@@ -44,7 +45,7 @@ class _ReviewDetailScreenState extends ConsumerState<ReviewDetailScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
-              context.pop();
+              if (context.canPop()) context.pop();
             } else {
               context.go('/review');
             }
@@ -93,7 +94,7 @@ class _ReviewDetailScreenState extends ConsumerState<ReviewDetailScreen> {
                   (tag) => Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.pinkAccent.withAlpha(20),
+                      color: scheme.primaryContainer,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(tag, style: const TextStyle(fontSize: 11)),
@@ -105,7 +106,7 @@ class _ReviewDetailScreenState extends ConsumerState<ReviewDetailScreen> {
           Row(
             children: [
               IconButton(
-                icon: Icon(liked ? Icons.favorite : Icons.favorite_border, color: Colors.pink),
+                icon: Icon(liked ? Icons.favorite : Icons.favorite_border, color: scheme.primary),
                 onPressed: () => ref.read(reviewLikeProvider.notifier).toggle(review.id),
               ),
               Text('$likeCount likes'),
@@ -413,10 +414,10 @@ class _AiSummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text('Pros', style: TextStyle(fontWeight: FontWeight.w600)),
-            ...pros.map((p) => Text('• $p')),
+            ...pros.map((p) => Text('â€¢ $p')),
             const SizedBox(height: 6),
             const Text('Cons', style: TextStyle(fontWeight: FontWeight.w600)),
-            ...cons.map((c) => Text('• $c')),
+            ...cons.map((c) => Text('â€¢ $c')),
           ],
         ),
       ),

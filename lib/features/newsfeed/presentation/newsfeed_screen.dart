@@ -12,6 +12,7 @@ import 'article_follow_provider.dart';
 import 'article_metrics_provider.dart';
 import 'newsfeed_streak_provider.dart';
 import 'article_saved_provider.dart';
+import '../../../shared/widgets/motion.dart';
 
 class NewsfeedScreen extends ConsumerStatefulWidget {
   const NewsfeedScreen({super.key});
@@ -51,6 +52,7 @@ class _NewsfeedScreenState extends ConsumerState<NewsfeedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final asyncArticles = ref.watch(newsfeedLoadProvider);
     final bookmarks = ref.watch(articleBookmarkProvider);
     final progress = ref.watch(articleReadProgressProvider);
@@ -133,6 +135,13 @@ class _NewsfeedScreenState extends ConsumerState<NewsfeedScreen> {
               controller: _controller,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               children: [
+                _NewsfeedHeroCard(
+                  streak: streak.streak,
+                  digestEnabled: digestEnabled,
+                  onToggleDigest: (value) =>
+                      ref.read(newsfeedDigestProvider.notifier).setEnabled(value),
+                ),
+                const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: TextField(
@@ -143,20 +152,28 @@ class _NewsfeedScreenState extends ConsumerState<NewsfeedScreen> {
                     onChanged: (v) => setState(() => _query = v),
                   ),
                 ),
-                Row(
+                if (followedTopics.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Following topics: ${followedTopics.take(4).join(', ')}',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
                   children: [
                     TextButton.icon(
                       onPressed: () => _openPreferences(context, categories, prefs),
                       icon: const Icon(Icons.notifications_active_outlined),
                       label: const Text('Muted topics'),
                     ),
-                    const SizedBox(width: 8),
                     TextButton.icon(
                       onPressed: () => context.go('/newsfeed/saved'),
                       icon: const Icon(Icons.bookmark_border),
                       label: const Text('Read later'),
                     ),
-                    const Spacer(),
                     Chip(
                       label: Text('Streak ${streak.streak} days'),
                       avatar: const Icon(Icons.local_fire_department, size: 16),
@@ -164,20 +181,20 @@ class _NewsfeedScreenState extends ConsumerState<NewsfeedScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
                   children: [
                     ChoiceChip(
                       label: const Text('For you'),
                       selected: _feedTab == 0,
                       onSelected: (_) => setState(() => _feedTab = 0),
                     ),
-                    const SizedBox(width: 8),
                     ChoiceChip(
                       label: const Text('Following'),
                       selected: _feedTab == 1,
                       onSelected: (_) => setState(() => _feedTab = 1),
                     ),
-                    const Spacer(),
                     if (onlyFollowing)
                       TextButton(
                         onPressed: () => context.go('/newsfeed/authors'),
@@ -304,158 +321,30 @@ class _NewsfeedScreenState extends ConsumerState<NewsfeedScreen> {
                     final commentCount = comments[article.id]?.length ?? 0;
                     final metric = metrics[article.id] ?? const ArticleMetrics(views: 0, shares: 0);
                     final isSaved = saved.contains(article.id);
-                    return GestureDetector(
+                    return _EditorialArticleCard(
+                      article: article,
+                      query: _query,
+                      isSaved: isSaved,
+                      isBookmarked: isBookmarked,
+                      isFeatured: article.id == visible.first.id,
+                      reaction: reaction,
+                      commentCount: commentCount,
+                      metric: metric,
+                      progress: progress[article.id] ?? 0,
+                      followed: followed.contains(article.author),
+                      authorProfile: authorProfiles[article.author],
+                      onToggleFollow: () =>
+                          ref.read(articleFollowProvider.notifier).toggle(article.author),
+                      onToggleBookmark: () =>
+                          ref.read(articleBookmarkProvider.notifier).toggle(article.id),
+                      onToggleSaved: () =>
+                          ref.read(articleSavedProvider.notifier).toggle(article.id),
+                      onShare: () => _openShareSheet(context, article),
+                      onOpenAuthor: () =>
+                          context.go('/newsfeed/author/${Uri.encodeComponent(article.author)}'),
+                      onReact: () =>
+                          ref.read(articleReactionProvider.notifier).toggleLike(article.id),
                       onTap: () => context.go('/article/${article.id}'),
-                      child: Card(
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ClipRRect(
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                              child: Image.network(article.image, height: 160, width: double.infinity, fit: BoxFit.cover),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: _highlight(article.title, _query),
-                                      ),
-                                      if (isSaved)
-                                        Container(
-                                          margin: const EdgeInsets.only(right: 6),
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green.withAlpha(25),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: const Text('Saved', style: TextStyle(fontSize: 10)),
-                                        ),
-                                      if (article.id == visible.first.id)
-                                        Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.pinkAccent.withAlpha(30),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: const Text('Featured', style: TextStyle(fontSize: 10)),
-                                    ),
-                                  TextButton(
-                                    onPressed: () => ref
-                                        .read(articleFollowProvider.notifier)
-                                        .toggle(article.author),
-                                        child: Text(
-                                          followed.contains(article.author) ? 'Following' : 'Follow',
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border),
-                                        onPressed: () => ref.read(articleBookmarkProvider.notifier).toggle(article.id),
-                                      ),
-                                      IconButton(
-                                        icon: Icon(isSaved ? Icons.save : Icons.save_outlined),
-                                        onPressed: () => ref.read(articleSavedProvider.notifier).toggle(article.id),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.share_outlined),
-                                        onPressed: () => _openShareSheet(context, article),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  GestureDetector(
-                                    onTap: () => context.go('/newsfeed/author/${Uri.encodeComponent(article.author)}'),
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 10,
-                                          backgroundImage: authorProfiles[article.author] == null
-                                              ? null
-                                              : NetworkImage(authorProfiles[article.author]!.avatar),
-                                          child: authorProfiles[article.author] == null
-                                              ? Text(article.author[0], style: const TextStyle(fontSize: 10))
-                                              : null,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          article.author,
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            decoration: TextDecoration.underline,
-                                          ),
-                                        ),
-                                        if (authorProfiles[article.author]?.verified == true) ...[
-                                          const SizedBox(width: 4),
-                                          const Icon(Icons.verified, size: 14, color: Colors.blue),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  _highlight(article.excerpt, _query),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${_readingTime(article.excerpt)} min read',
-                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    '${metric.views} views - ${metric.shares} shares',
-                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blueGrey.withAlpha(31),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(article.category, style: const TextStyle(fontSize: 11)),
-                                      ),
-                                      const Spacer(),
-                                      Text(article.createdAt, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      TextButton.icon(
-                                        onPressed: () => ref
-                                            .read(articleReactionProvider.notifier)
-                                            .toggleLike(article.id),
-                                        icon: Icon(
-                                          reaction.liked ? Icons.favorite : Icons.favorite_border,
-                                          color: reaction.liked ? Colors.pink : null,
-                                        ),
-                                        label: Text('${reaction.likes}'),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.comment, size: 18, color: Colors.grey),
-                                          const SizedBox(width: 4),
-                                          Text('$commentCount', style: const TextStyle(color: Colors.grey)),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  LinearProgressIndicator(
-                                    value: progress[article.id] ?? 0,
-                                    backgroundColor: Colors.grey.shade200,
-                                    minHeight: 4,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     );
                   }),
               ],
@@ -491,81 +380,26 @@ class _NewsfeedScreenState extends ConsumerState<NewsfeedScreen> {
         final isBookmarked = bookmarks.contains(article.id);
         final reaction = reactions[article.id] ?? const ArticleReactionState(likes: 0, liked: false);
         final commentCount = comments[article.id]?.length ?? 0;
-        return GestureDetector(
+        return _EditorialArticleCard(
+          article: article,
+          query: query,
+          isSaved: false,
+          isBookmarked: isBookmarked,
+          isFeatured: false,
+          reaction: reaction,
+          commentCount: commentCount,
+          metric: const ArticleMetrics(views: 0, shares: 0),
+          progress: 0,
+          followed: followed.contains(article.author),
+          authorProfile: authorProfiles[article.author],
+          onToggleFollow: () => ref.read(articleFollowProvider.notifier).toggle(article.author),
+          onToggleBookmark: () => ref.read(articleBookmarkProvider.notifier).toggle(article.id),
+          onToggleSaved: null,
+          onShare: null,
+          onOpenAuthor: () =>
+              context.go('/newsfeed/author/${Uri.encodeComponent(article.author)}'),
+          onReact: () => ref.read(articleReactionProvider.notifier).toggleLike(article.id),
           onTap: () => context.go('/article/${article.id}'),
-          child: Card(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(child: _highlight(article.title, query)),
-                      TextButton(
-                        onPressed: () => ref.read(articleFollowProvider.notifier).toggle(article.author),
-                        child: Text(followed.contains(article.author) ? 'Following' : 'Follow'),
-                      ),
-                      IconButton(
-                        icon: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border),
-                        onPressed: () => ref.read(articleBookmarkProvider.notifier).toggle(article.id),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: () => context.go('/newsfeed/author/${Uri.encodeComponent(article.author)}'),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 10,
-                          backgroundImage: authorProfiles[article.author] == null
-                              ? null
-                              : NetworkImage(authorProfiles[article.author]!.avatar),
-                          child: authorProfiles[article.author] == null
-                              ? Text(article.author[0], style: const TextStyle(fontSize: 10))
-                              : null,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          article.author,
-                          style: const TextStyle(color: Colors.grey, decoration: TextDecoration.underline),
-                        ),
-                        if (authorProfiles[article.author]?.verified == true) ...[
-                          const SizedBox(width: 4),
-                          const Icon(Icons.verified, size: 14, color: Colors.blue),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  _highlight(article.excerpt, query),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => ref.read(articleReactionProvider.notifier).toggleLike(article.id),
-                        icon: Icon(
-                          reaction.liked ? Icons.favorite : Icons.favorite_border,
-                          color: reaction.liked ? Colors.pink : null,
-                        ),
-                        label: Text('${reaction.likes}'),
-                      ),
-                      const SizedBox(width: 8),
-                      Row(
-                        children: [
-                          const Icon(Icons.comment, size: 18, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text('$commentCount', style: const TextStyle(color: Colors.grey)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
         );
       }));
     }
@@ -672,6 +506,364 @@ class _NewsfeedScreenState extends ConsumerState<NewsfeedScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NewsfeedHeroCard extends StatelessWidget {
+  final int streak;
+  final bool digestEnabled;
+  final ValueChanged<bool> onToggleDigest;
+
+  const _NewsfeedHeroCard({
+    required this.streak,
+    required this.digestEnabled,
+    required this.onToggleDigest,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            scheme.primaryContainer.withValues(alpha: 0.9),
+            scheme.surfaceContainerHighest,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Today’s reads',
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Keep your streak going with curated beauty insights.',
+            style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: scheme.surface.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.local_fire_department, size: 16),
+                    const SizedBox(width: 6),
+                    Text('$streak day streak', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('Daily digest', style: theme.textTheme.bodySmall),
+                    Switch(
+                      value: digestEnabled,
+                      onChanged: onToggleDigest,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditorialArticleCard extends StatelessWidget {
+  final ArticleItem article;
+  final String query;
+  final bool isSaved;
+  final bool isBookmarked;
+  final bool isFeatured;
+  final ArticleReactionState reaction;
+  final int commentCount;
+  final ArticleMetrics metric;
+  final double progress;
+  final bool followed;
+  final AuthorProfile? authorProfile;
+  final VoidCallback onToggleFollow;
+  final VoidCallback onToggleBookmark;
+  final VoidCallback? onToggleSaved;
+  final VoidCallback? onShare;
+  final VoidCallback onOpenAuthor;
+  final VoidCallback onReact;
+  final VoidCallback onTap;
+
+  const _EditorialArticleCard({
+    required this.article,
+    required this.query,
+    required this.isSaved,
+    required this.isBookmarked,
+    required this.isFeatured,
+    required this.reaction,
+    required this.commentCount,
+    required this.metric,
+    required this.progress,
+    required this.followed,
+    required this.authorProfile,
+    required this.onToggleFollow,
+    required this.onToggleBookmark,
+    required this.onToggleSaved,
+    required this.onShare,
+    required this.onOpenAuthor,
+    required this.onReact,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return MotionFadeSlide(
+      beginOffset: const Offset(0, 0.08),
+      child: MotionPressScale(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Card(
+          margin: const EdgeInsets.symmetric(vertical: 10),
+          elevation: 1.2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                child: Stack(
+                  children: [
+                    Hero(
+                      tag: 'article-hero-${article.id}',
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: Image.network(
+                          article.image,
+                          key: ValueKey(article.image),
+                          height: 190,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.black.withValues(alpha: 0.0),
+                              Colors.black.withValues(alpha: 0.55),
+                            ],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      bottom: 12,
+                      right: 12,
+                      child: Text(
+                        article.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      top: 12,
+                      child: Row(
+                        children: [
+                          if (isFeatured)
+                            _EditorialBadge(
+                              label: 'Featured',
+                              color: scheme.secondaryContainer,
+                              textColor: scheme.onSecondaryContainer,
+                            ),
+                          if (isSaved)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: _EditorialBadge(
+                                label: 'Saved',
+                                color: Colors.green.withValues(alpha: 0.2),
+                                textColor: Colors.green.shade700,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                  GestureDetector(
+                    onTap: onOpenAuthor,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundImage: authorProfile == null ? null : NetworkImage(authorProfile!.avatar),
+                          child: authorProfile == null
+                              ? Text(article.author[0], style: const TextStyle(fontSize: 10))
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            article.author,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        if (authorProfile?.verified == true) ...[
+                          const SizedBox(width: 4),
+                          const Icon(Icons.verified, size: 14, color: Colors.blue),
+                        ],
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: onToggleFollow,
+                          child: Text(followed ? 'Following' : 'Follow'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _highlight(article.excerpt, query),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      _EditorialBadge(
+                        label: article.category,
+                        color: scheme.surfaceContainerLow,
+                        textColor: scheme.onSurfaceVariant,
+                      ),
+                      const Spacer(),
+                      Text(article.createdAt, style: TextStyle(color: scheme.onSurfaceVariant)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Text('${_readingTime(article.excerpt)} min read',
+                          style: TextStyle(color: scheme.onSurfaceVariant)),
+                      const SizedBox(width: 10),
+                      Text('${metric.views} views • ${metric.shares} shares',
+                          style: TextStyle(color: scheme.onSurfaceVariant)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: onReact,
+                        icon: Icon(
+                          reaction.liked ? Icons.favorite : Icons.favorite_border,
+                          color: reaction.liked ? scheme.primary : null,
+                        ),
+                        label: Text('${reaction.likes}'),
+                      ),
+                      const SizedBox(width: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.comment, size: 18, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text('$commentCount', style: const TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border),
+                        onPressed: onToggleBookmark,
+                      ),
+                      if (onToggleSaved != null)
+                        IconButton(
+                          icon: Icon(isSaved ? Icons.save : Icons.save_outlined),
+                          onPressed: onToggleSaved,
+                        ),
+                      if (onShare != null)
+                        IconButton(
+                          icon: const Icon(Icons.share_outlined),
+                          onPressed: onShare,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                    LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: scheme.surfaceContainerHigh,
+                      minHeight: 4,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditorialBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color textColor;
+
+  const _EditorialBadge({
+    required this.label,
+    required this.color,
+    required this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: textColor),
       ),
     );
   }

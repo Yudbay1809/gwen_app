@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +26,7 @@ class WishlistScreen extends ConsumerStatefulWidget {
 class _WishlistScreenState extends ConsumerState<WishlistScreen> {
   bool _selectionMode = false;
   final Set<int> _selectedIds = {};
+  _WishlistSort _sort = _WishlistSort.recent;
 
   void _toggleSelection(Product product) {
     setState(() {
@@ -153,6 +154,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final items = ref.watch(wishlistProvider);
     final collections = ref.watch(wishlistCollectionsProvider);
     final collectionAnalytics = ref.watch(collectionAnalyticsProvider);
@@ -168,6 +170,12 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
       ..sort((a, b) => b.value.compareTo(a.value));
     final topProducts = topIds.take(4).map((e) => productsById[e.key]).whereType<Product>();
     final allSelected = items.isNotEmpty && _selectedIds.length == items.length;
+    final sortedItems = _applyWishlistSort(
+      items,
+      sort: _sort,
+      priceHistory: priceHistory,
+      analytics: wishlistAnalytics,
+    );
     final priceDropItems = items
         .where((p) => priceHistory[p.id] != null && priceHistory[p.id]!.length >= 2)
         .map((p) {
@@ -218,12 +226,37 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _WishlistHeroSummary(
+            totalItems: items.length,
+            collections: collections.length,
+            alerts: priceAlerts.length,
+            priceDrops: priceDropItems.length,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Text('Sort by', style: TextStyle(color: Colors.grey)),
+              const SizedBox(width: 8),
+              DropdownButton<_WishlistSort>(
+                value: _sort,
+                onChanged: (v) => setState(() => _sort = v ?? _sort),
+                items: const [
+                  DropdownMenuItem(value: _WishlistSort.recent, child: Text('Recent')),
+                  DropdownMenuItem(value: _WishlistSort.priceDrop, child: Text('Price drop')),
+                  DropdownMenuItem(value: _WishlistSort.mostViewed, child: Text('Most viewed')),
+                  DropdownMenuItem(value: _WishlistSort.rating, child: Text('Rating')),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           if (priceAlerts.isNotEmpty) ...[
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.pinkAccent.withAlpha(18),
-                borderRadius: BorderRadius.circular(12),
+                color: scheme.primaryContainer.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.4)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,28 +265,28 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                     children: [
                       const Icon(Icons.notifications_active, size: 18),
                       const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${priceAlerts.length} price alerts active'
-                      '${priceAlerts.isNotEmpty ? ' • next ${priceAlertSettings[priceAlerts.first]?.remindAt ?? 'Daily'}' : ''}',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      final id = priceAlerts.first;
-                      final product = productsById[id];
-                      final setting = priceAlertSettings[id];
-                      if (product == null || setting == null) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Alert: ${product.name} at Rp ${setting.targetPrice.toStringAsFixed(0)} (${setting.remindAt})',
-                          ),
+                      Expanded(
+                        child: Text(
+                          '${priceAlerts.length} price alerts active'
+                          '${priceAlerts.isNotEmpty ? ' • next ${priceAlertSettings[priceAlerts.first]?.remindAt ?? 'Daily'}' : ''}',
                         ),
-                      );
-                    },
-                    child: const Text('Preview'),
-                  ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          final id = priceAlerts.first;
+                          final product = productsById[id];
+                          final setting = priceAlertSettings[id];
+                          if (product == null || setting == null) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Alert: ${product.name} at Rp ${setting.targetPrice.toStringAsFixed(0)} (${setting.remindAt})',
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Preview'),
+                      ),
                   TextButton(
                     onPressed: () => ref.read(wishlistPriceAlertProvider.notifier).toggle(priceAlerts.first),
                     child: const Text('Disable one'),
@@ -312,8 +345,9 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blueGrey.withAlpha(18),
-                borderRadius: BorderRadius.circular(12),
+                color: scheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.4)),
               ),
               child: Row(
                 children: [
@@ -446,7 +480,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                   const EmptyState(
                     icon: Icons.favorite_border,
                     title: 'Wishlist is empty',
-                    message: 'Save products you love to see them here.',
+                    subtitle: 'Save products you love to see them here.',
                   ),
                   const SizedBox(height: 8),
                   ElevatedButton(
@@ -465,93 +499,113 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                 label: const Text('Export wishlist'),
               ),
             ),
-          if (items.isNotEmpty)
+          if (sortedItems.isNotEmpty)
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: const EdgeInsets.only(top: 8),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.62,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 0.58,
               ),
-              itemCount: items.length,
+              itemCount: sortedItems.length,
               itemBuilder: (context, index) {
-                final product = items[index];
+                final product = sortedItems[index];
                 final selected = _selectedIds.contains(product.id);
                 final alertOn = priceAlerts.contains(product.id);
                 final alertSetting = priceAlertSettings[product.id];
-                return GestureDetector(
-                  onLongPress: () => _enterSelection(product),
-                  onTap: () {
-                    if (_selectionMode) {
-                      _toggleSelection(product);
-                    } else {
-                      context.go('/product/${product.id}');
-                    }
-                  },
-                  child: Stack(
-                    children: [
-                      ProductCard(product: product),
-                      if (priceHistory[product.id] != null)
+                final history = priceHistory[product.id];
+                final dropAmount = (history != null && history.length >= 2)
+                    ? (history.first - history.last).clamp(0, double.infinity).toDouble()
+                    : 0.0;
+                return _StaggeredFadeSlide(
+                  index: index,
+                  child: _PressScale(
+                    onTap: () {
+                      if (_selectionMode) {
+                        _toggleSelection(product);
+                      } else {
+                        context.go('/product/${product.id}');
+                      }
+                    },
+                    onLongPress: () => _enterSelection(product),
+                    child: Stack(
+                      children: [
+                        ProductCard(
+                          product: product,
+                          priceDropAmount: dropAmount > 0 ? dropAmount : null,
+                        ),
+                        if (priceHistory[product.id] != null)
+                          Positioned(
+                            left: 8,
+                            bottom: 8,
+                            right: 8,
+                            child: GestureDetector(
+                              onTap: () => _openPriceHistorySheet(
+                                context,
+                                product,
+                                priceHistory[product.id]!,
+                              ),
+                              child: _PriceTrendSparkline(values: priceHistory[product.id]!),
+                            ),
+                          ),
+                        if (selected)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.check_circle, color: Colors.white, size: 42),
+                              ),
+                            ),
+                          ),
+                        if (_selectionMode && !selected)
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: const Icon(Icons.check_box_outline_blank, size: 18),
+                            ),
+                          ),
                         Positioned(
                           left: 8,
-                          bottom: 8,
-                          right: 8,
-                          child: GestureDetector(
-                            onTap: () => _openPriceHistorySheet(
-                              context,
-                              product,
-                              priceHistory[product.id]!,
-                            ),
-                            child: _PriceTrendSparkline(values: priceHistory[product.id]!),
-                          ),
-                        ),
-                      if (selected)
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withAlpha(90),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Center(
-                              child: Icon(Icons.check_circle, color: Colors.white, size: 42),
-                            ),
-                          ),
-                        ),
-                      if (_selectionMode && !selected)
-                        Positioned(
-                          right: 8,
                           top: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.check_box_outline_blank, size: 18),
-                          ),
-                        ),
-                      Positioned(
-                        left: 8,
-                        top: 8,
-                        child: GestureDetector(
-                          onTap: () => _openPriceAlertSheet(context, ref, product, alertOn, alertSetting),
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              alertOn ? Icons.notifications_active : Icons.notifications_none,
-                              size: 18,
+                          child: GestureDetector(
+                            onTap: () => _openPriceAlertSheet(context, ref, product, alertOn, alertSetting),
+                            child: AnimatedScale(
+                              duration: const Duration(milliseconds: 220),
+                              scale: alertOn ? 1.08 : 1,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                                child: Icon(
+                                  alertOn ? Icons.notifications_active : Icons.notifications_none,
+                                  size: 18,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
@@ -598,15 +652,16 @@ class _PriceTrendSparkline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       height: 22,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.white.withAlpha(220),
+        color: scheme.surface.withAlpha(230),
         borderRadius: BorderRadius.circular(10),
       ),
       child: CustomPaint(
-        painter: _SparklinePainter(values),
+        painter: _SparklinePainter(values, scheme.primary),
       ),
     );
   }
@@ -614,8 +669,9 @@ class _PriceTrendSparkline extends StatelessWidget {
 
 class _SparklinePainter extends CustomPainter {
   final List<double> values;
+  final Color color;
 
-  _SparklinePainter(this.values);
+  _SparklinePainter(this.values, this.color);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -624,7 +680,7 @@ class _SparklinePainter extends CustomPainter {
     final maxV = values.reduce((a, b) => a > b ? a : b);
     final range = (maxV - minV) == 0 ? 1 : (maxV - minV);
     final paint = Paint()
-      ..color = Colors.pinkAccent
+      ..color = color
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
     final path = Path();
@@ -901,3 +957,207 @@ Future<void> _renameCollection(BuildContext context, WidgetRef ref, String oldNa
     }
   }
 }
+
+class _WishlistHeroSummary extends StatelessWidget {
+  final int totalItems;
+  final int collections;
+  final int alerts;
+  final int priceDrops;
+
+  const _WishlistHeroSummary({
+    required this.totalItems,
+    required this.collections,
+    required this.alerts,
+    required this.priceDrops,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            scheme.primaryContainer.withValues(alpha: 0.9),
+            scheme.surfaceContainerHighest,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Wishlist overview',
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Keep track of favorites, alerts, and price drops.',
+            style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _HeroChip(label: 'Items', value: '$totalItems'),
+              _HeroChip(label: 'Collections', value: '$collections'),
+              _HeroChip(label: 'Alerts', value: '$alerts'),
+              _HeroChip(label: 'Drops', value: '$priceDrops'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroChip extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _HeroChip({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: scheme.surface.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(color: scheme.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StaggeredFadeSlide extends StatefulWidget {
+  final Widget child;
+  final int index;
+
+  const _StaggeredFadeSlide({
+    required this.child,
+    required this.index,
+  });
+
+  @override
+  State<_StaggeredFadeSlide> createState() => _StaggeredFadeSlideState();
+}
+
+class _StaggeredFadeSlideState extends State<_StaggeredFadeSlide> {
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(milliseconds: 40 * widget.index), () {
+      if (!mounted) return;
+      setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _visible ? 1 : 0,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      child: AnimatedSlide(
+        offset: _visible ? Offset.zero : const Offset(0, 0.06),
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _PressScale extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  const _PressScale({
+    required this.child,
+    this.onTap,
+    this.onLongPress,
+  });
+
+  @override
+  State<_PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<_PressScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
+      onTapDown: (_) => _setPressed(true),
+      onTapCancel: () => _setPressed(false),
+      onTapUp: (_) => _setPressed(false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.98 : 1,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+enum _WishlistSort { recent, priceDrop, mostViewed, rating }
+
+List<Product> _applyWishlistSort(
+  List<Product> items, {
+  required _WishlistSort sort,
+  required Map<int, List<double>> priceHistory,
+  required Map<int, int> analytics,
+}) {
+  final list = [...items];
+  switch (sort) {
+    case _WishlistSort.recent:
+      return list.reversed.toList();
+    case _WishlistSort.priceDrop:
+      list.sort((a, b) {
+        final aHist = priceHistory[a.id];
+        final bHist = priceHistory[b.id];
+        final aDrop = (aHist != null && aHist.length >= 2) ? aHist.first - aHist.last : 0.0;
+        final bDrop = (bHist != null && bHist.length >= 2) ? bHist.first - bHist.last : 0.0;
+        return bDrop.compareTo(aDrop);
+      });
+      return list;
+    case _WishlistSort.mostViewed:
+      list.sort((a, b) => (analytics[b.id] ?? 0).compareTo(analytics[a.id] ?? 0));
+      return list;
+    case _WishlistSort.rating:
+      list.sort((a, b) => b.rating.compareTo(a.rating));
+      return list;
+  }
+}
+

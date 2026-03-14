@@ -14,6 +14,7 @@ class ExclusiveProductsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sorted = _sortByStock(products);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12),
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -31,7 +32,7 @@ class ExclusiveProductsSection extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             scrollDirection: Axis.horizontal,
             itemBuilder: (context, index) {
-              final product = products[index];
+              final product = sorted[index];
               return SizedBox(
                 width: 180,
                 child: ProductCard(
@@ -42,11 +43,17 @@ class ExclusiveProductsSection extends ConsumerWidget {
               );
             },
             separatorBuilder: (context, index) => const SizedBox(width: 12),
-            itemCount: products.length,
+            itemCount: sorted.length,
           ),
         ),
       ],
     ),
     );
   }
+}
+
+List<Product> _sortByStock(List<Product> items) {
+  final inStock = items.where((p) => p.stock > 0).toList();
+  final outOfStock = items.where((p) => p.stock <= 0).toList();
+  return [...inStock, ...outOfStock];
 }

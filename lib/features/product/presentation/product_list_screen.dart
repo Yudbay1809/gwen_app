@@ -55,8 +55,12 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     if (!_initialized) {
       final queryParams = GoRouterState.of(context).uri.queryParameters;
       final categoryId = int.tryParse(queryParams['categoryId'] ?? '');
+      final brandId = int.tryParse(queryParams['brandId'] ?? '');
       if (categoryId != null) {
         _filter = _filter.copyWith(categoryId: categoryId);
+      }
+      if (brandId != null) {
+        _filter = _filter.copyWith(brandId: brandId);
       }
       _initialized = true;
     }
@@ -242,6 +246,15 @@ List<Product> _applyFilter({required List<Product> products, required ProductFil
   }
 
   switch (filter.sort) {
+    case ProductSort.bestDeal:
+      result.sort((a, b) {
+        final aPct = a.price <= 0 ? 0 : (a.price - a.discountPrice) / a.price;
+        final bPct = b.price <= 0 ? 0 : (b.price - b.discountPrice) / b.price;
+        final byDeal = bPct.compareTo(aPct);
+        if (byDeal != 0) return byDeal;
+        return b.rating.compareTo(a.rating);
+      });
+      break;
     case ProductSort.priceLow:
       result.sort((a, b) => a.discountPrice.compareTo(b.discountPrice));
       break;
@@ -261,5 +274,7 @@ List<Product> _applyFilter({required List<Product> products, required ProductFil
       break;
   }
 
-  return result;
+  final inStock = result.where((p) => p.stock > 0).toList();
+  final outOfStock = result.where((p) => p.stock <= 0).toList();
+  return [...inStock, ...outOfStock];
 }

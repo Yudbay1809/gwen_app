@@ -77,6 +77,7 @@ class _ReviewListScreenState extends ConsumerState<ReviewListScreen> {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 80),
               children: [
+                _ReviewSummaryPanel(reviews: filtered),
                 _FilterBar(
                   filter: filter,
                   onSortChanged: filterNotifier.setSort,
@@ -168,6 +169,73 @@ class _FilterBar extends StatelessWidget {
             onChanged: onVerifiedChanged,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReviewSummaryPanel extends StatelessWidget {
+  final List<ReviewItem> reviews;
+
+  const _ReviewSummaryPanel({required this.reviews});
+
+  @override
+  Widget build(BuildContext context) {
+    if (reviews.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final total = reviews.length;
+    final avg = reviews.fold<double>(0, (sum, r) => sum + r.rating) / total;
+    final verified = reviews.where((r) => r.verifiedPurchase).length;
+    final media = reviews.where((r) => r.hasMedia).length;
+    final verifiedPct = total == 0 ? 0 : (verified / total * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(avg.toStringAsFixed(1), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.star, size: 16),
+                    const SizedBox(width: 4),
+                    Text('$total reviews', style: const TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+            const Spacer(),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: scheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: scheme.secondary.withValues(alpha: 0.35)),
+                  ),
+                  child: Text(
+                    '$verifiedPct% verified',
+                    style: TextStyle(fontSize: 11, color: scheme.onSecondaryContainer, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text('Media $media', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

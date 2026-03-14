@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/widgets/price_widget.dart';
@@ -18,6 +19,7 @@ class CartScreen extends ConsumerStatefulWidget {
 class _CartScreenState extends ConsumerState<CartScreen> {
   final _promoController = TextEditingController();
   bool _autoApplied = false;
+  Set<int> _lastOutOfStockIds = {};
 
   @override
   void dispose() {
@@ -112,14 +114,33 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
+
+  void _moveOutOfStockToSaved(List<CartItem> items) {
+    final outOfStock = items.where((i) => i.product.stock <= 0).toList();
+    if (outOfStock.isEmpty) return;
+    final cartNotifier = ref.read(cartProvider.notifier);
+    final savedNotifier = ref.read(savedForLaterProvider.notifier);
+    for (final item in outOfStock) {
+      cartNotifier.remove(item.product);
+      savedNotifier.add(item);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Out of stock items moved to Saved for later')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = ref.watch(cartProvider);
+    final outOfStockItems = items.where((i) => i.product.stock <= 0).toList();
+    final outOfStockIds = outOfStockItems.map((e) => e.product.id).toSet();
+    final sortedItems = _sortCartItemsByStock(items);
     final saved = ref.watch(savedForLaterProvider);
     final subtotal = ref.watch(cartSubtotalProvider);
     final discount = ref.watch(cartDiscountProvider);
     final total = ref.watch(cartTotalProvider);
     final shipping = subtotal >= 250000 ? 0.0 : 20000.0;
+    final grandTotal = total + shipping;
     final appliedPromos = ref.watch(appliedPromosProvider);
     final availablePromos = ref.watch(availablePromosProvider);
     final recommended = ref.watch(homeDataProvider).bestSeller.take(6).toList();
@@ -139,6 +160,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       rules: availablePromos,
       applied: appliedPromos,
     );
+    if (outOfStockItems.isNotEmpty && !_setsEqual(outOfStockIds, _lastOutOfStockIds)) {
+      _lastOutOfStockIds = outOfStockIds;
+    } else if (outOfStockItems.isEmpty && _lastOutOfStockIds.isNotEmpty) {
+      _lastOutOfStockIds = {};
+    }
 
     if (!_autoApplied && items.isNotEmpty && appliedPromos.isEmpty && bestPromo != null) {
       _autoApplied = true;
@@ -156,13 +182,25 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       });
     }
 
+    final hasOutOfStock = outOfStockItems.isNotEmpty;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Cart')),
       body: items.isEmpty && saved.isEmpty
-          ? const EmptyState(
-              icon: Icons.shopping_bag_outlined,
-              title: 'Cart is empty',
-              message: 'Add items to your cart to continue checkout.',
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const EmptyState(
+                  icon: Icons.shopping_bag_outlined,
+                  title: 'Cart is empty',
+                  subtitle: 'Add items to your cart to continue checkout.',
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () => context.go('/shop'),
+                  child: const Text('Browse products'),
+                ),
+              ],
             )
           : ListView(
               padding: const EdgeInsets.all(16),
@@ -175,7 +213,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       TextButton.icon(
                         onPressed: () async {
                           await ref.read(cartProvider.notifier).saveSnapshot();
-                          if (!mounted) return;
+                          if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Cart snapshot saved')),
                           );
@@ -187,7 +225,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       TextButton.icon(
                         onPressed: () async {
                           await ref.read(cartProvider.notifier).restoreSnapshot();
-                          if (!mounted) return;
+                          if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Cart snapshot restored')),
                           );
@@ -197,15 +235,73 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       ),
                     ],
                   ),
-                  ...items.map(
-                    (item) => Card(
-                      child: ListTile(
+                  if (hasOutOfStock) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Some items are out of stock. Move them to Saved for later to continue checkout.',
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => _moveOutOfStockToSaved(sortedItems),
+                            child: const Text('Move all'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  ...sortedItems.map(
+                    (item) {
+                      final outOfStock = item.product.stock <= 0;
+                      return Card(
+                        child: ListTile(
                         leading: Image.network(item.product.image, width: 56, height: 56, fit: BoxFit.cover),
                         title: Text(item.product.name),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             PriceWidget(price: item.product.discountPrice),
+                            if (outOfStock)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.errorContainer,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    'Out of stock',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onErrorContainer,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (!outOfStock && item.product.stock <= 3)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Low stock',
+                                  style: TextStyle(fontSize: 11, color: Colors.orange),
+                                ),
+                              ),
                             if (item.note.isNotEmpty)
                               Text('Note: ${item.note}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                             if (warehouseStock[item.product.id] != null)
@@ -238,7 +334,12 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.remove),
-                              onPressed: () => ref.read(cartProvider.notifier).updateQty(item.product, item.quantity - 1),
+                              onPressed: outOfStock
+                                  ? null
+                                  : () {
+                                      HapticFeedback.selectionClick();
+                                      ref.read(cartProvider.notifier).updateQty(item.product, item.quantity - 1);
+                                    },
                               onLongPress: () => ref
                                   .read(cartProvider.notifier)
                                   .updateQty(item.product, item.quantity - 3),
@@ -246,7 +347,12 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                             Text('${item.quantity}'),
                             IconButton(
                               icon: const Icon(Icons.add),
-                              onPressed: () => ref.read(cartProvider.notifier).updateQty(item.product, item.quantity + 1),
+                              onPressed: outOfStock
+                                  ? null
+                                  : () {
+                                      HapticFeedback.selectionClick();
+                                      ref.read(cartProvider.notifier).updateQty(item.product, item.quantity + 1);
+                                    },
                               onLongPress: () => ref
                                   .read(cartProvider.notifier)
                                   .updateQty(item.product, item.quantity + 3),
@@ -274,7 +380,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                           ],
                         ),
                       ),
-                    ),
+                    );
+                    },
                   ),
                 ],
                 if (saved.isNotEmpty) ...[
@@ -497,6 +604,30 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   ),
                 ],
                 const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.local_shipping_outlined,
+                          color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Next: confirm address & payment in Checkout',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -534,7 +665,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     const Text('Total', style: TextStyle(fontWeight: FontWeight.w700)),
                     Row(
                       children: [
-                        PriceWidget(price: total),
+                        PriceWidget(price: grandTotal),
                         IconButton(
                           icon: const Icon(Icons.info_outline, size: 18),
                           onPressed: () => _showBreakdown(context, items, appliedPromos, subtotal, discount),
@@ -550,31 +681,60 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 ),
               ],
             ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)]),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('$itemCount items', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                  PriceWidget(price: total),
-                  if (appliedPromos.isEmpty)
-                    const Text(
-                      'Use a promo to save more',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                ],
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
-            ),
-            ElevatedButton(
-              onPressed: items.isEmpty ? null : () => context.go('/checkout'),
-              child: const Text('Checkout'),
-            ),
-          ],
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$itemCount items',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    PriceWidget(price: grandTotal),
+                    if (appliedPromos.isEmpty && !hasOutOfStock)
+                      const Text(
+                        'Use a promo to save more',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    if (hasOutOfStock)
+                      const Text(
+                        'Move or remove out-of-stock items to checkout',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: items.isEmpty || hasOutOfStock ? null : () => context.go('/checkout'),
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text('Checkout'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -682,4 +842,18 @@ String _estimateShipping(int productId) {
 
 String _formatDate(DateTime date) {
   return DateFormat('dd MMM, HH:mm').format(date);
+}
+
+List<CartItem> _sortCartItemsByStock(List<CartItem> items) {
+  final inStock = items.where((i) => i.product.stock > 0).toList();
+  final outOfStock = items.where((i) => i.product.stock <= 0).toList();
+  return [...inStock, ...outOfStock];
+}
+
+bool _setsEqual(Set<int> a, Set<int> b) {
+  if (a.length != b.length) return false;
+  for (final v in a) {
+    if (!b.contains(v)) return false;
+  }
+  return true;
 }

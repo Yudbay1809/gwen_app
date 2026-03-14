@@ -8,6 +8,7 @@ class WishlistEntryButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final count = ref.watch(wishlistProvider).length;
 
     return IconButton(
@@ -15,7 +16,7 @@ class WishlistEntryButton extends ConsumerWidget {
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(Icons.favorite_border, color: Colors.pink.shade300),
+          Icon(Icons.favorite_border, color: scheme.primary),
           if (count > 0)
             Positioned(
               right: -6,

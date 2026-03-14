@@ -13,6 +13,7 @@ class ReviewCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final formatter = DateFormat('dd MMM, HH:mm');
     final helpfulCount = ref.watch(reviewHelpfulProvider)[review.id] ?? 0;
     return Card(
@@ -45,10 +46,21 @@ class ReviewCard extends ConsumerWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.blueGrey.withAlpha(20),
-                                  borderRadius: BorderRadius.circular(10),
+                                  color: scheme.secondaryContainer,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: scheme.secondary.withValues(alpha: 0.4)),
                                 ),
-                                child: const Text('Verified purchase', style: TextStyle(fontSize: 10)),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.verified, size: 12, color: scheme.onSecondaryContainer),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Verified',
+                                      style: TextStyle(fontSize: 10, color: scheme.onSecondaryContainer),
+                                    ),
+                                  ],
+                                ),
                               ),
                             if (review.id % 3 == 0)
                               Container(
@@ -85,7 +97,7 @@ class ReviewCard extends ConsumerWidget {
                       (tag) => Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.pinkAccent.withAlpha(20),
+                          color: scheme.primaryContainer,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(tag, style: const TextStyle(fontSize: 11)),
@@ -96,7 +108,7 @@ class ReviewCard extends ConsumerWidget {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(Icons.favorite, size: 16, color: Colors.pink.shade300),
+                  Icon(Icons.favorite, size: 16, color: scheme.primary),
                   const SizedBox(width: 4),
                   Text('${review.likes} likes', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   if (review.hasMedia) ...[

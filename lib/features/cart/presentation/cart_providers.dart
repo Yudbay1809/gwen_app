@@ -295,6 +295,11 @@ final cartSubtotalProvider = Provider<double>((ref) {
   return items.fold(0, (sum, item) => sum + (item.product.discountPrice * item.quantity));
 });
 
+final cartItemCountProvider = Provider<int>((ref) {
+  final items = ref.watch(cartProvider);
+  return items.fold(0, (sum, item) => sum + item.quantity);
+});
+
 final cartDiscountProvider = Provider<double>((ref) {
   final subtotal = ref.watch(cartSubtotalProvider);
   final promos = ref.watch(appliedPromosProvider);

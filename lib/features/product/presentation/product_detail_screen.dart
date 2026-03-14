@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/widgets/price_widget.dart';
@@ -93,11 +93,15 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final compare = ref.watch(productCompareProvider);
     final isCompared = compare.any((e) => e.id == product.id);
     final beautyProfile = ref.watch(beautyProfileProvider);
-    final images = [
+    final imageCandidates = [
       product.image,
       '${product.image}&v=2',
       '${product.image}&v=3',
     ];
+    final images = imageCandidates.where((e) => e.trim().isNotEmpty).toList();
+    if (images.isEmpty) {
+      images.add('https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800&q=80');
+    }
     final ingredients = const [
       'Hyaluronic Acid',
       'Niacinamide',
@@ -128,7 +132,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
-              context.pop();
+              if (context.canPop()) context.pop();
             } else {
               context.go('/shop');
             }
@@ -182,22 +186,35 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           SliverToBoxAdapter(
             child: Stack(
               children: [
-                CarouselSlider(
-                  items: images
-                      .map(
-                        (url) => GestureDetector(
-                          onTap: () => _openImage(context, url),
-                          child: Image.network(
-                            url,
-                            height: 320,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
+                if (images.length <= 1)
+                  GestureDetector(
+                    onTap: () => _openImageGallery(context, images, 0),
+                    child: Image.network(
+                      images.first,
+                      height: 320,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                else
+                  CarouselSlider(
+                    items: images
+                        .asMap()
+                        .entries
+                        .map(
+                          (entry) => GestureDetector(
+                            onTap: () => _openImageGallery(context, images, entry.key),
+                            child: Image.network(
+                              entry.value,
+                              height: 320,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
                           ),
-                        ),
-                      )
-                      .toList(),
-                  options: CarouselOptions(height: 320, viewportFraction: 1),
-                ),
+                        )
+                        .toList(),
+                    options: CarouselOptions(height: 320, viewportFraction: 1),
+                  ),
                 if (hasDiscount)
                   Positioned(
                     top: 16,
@@ -289,9 +306,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.pinkAccent.withAlpha(18),
+                        color: Theme.of(context).colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.pinkAccent.withAlpha(40)),
+                        border: Border.all(color: Theme.of(context).colorScheme.outline),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -412,11 +429,59 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       ),
                     ],
                   ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: const [
+                      _ReviewHighlightChip(label: 'Hydrating'),
+                      _ReviewHighlightChip(label: 'Lightweight'),
+                      _ReviewHighlightChip(label: 'Non-sticky'),
+                      _ReviewHighlightChip(label: 'Sensitive-safe'),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _ReviewSummaryCard(reviews: reviews),
+                  const SizedBox(height: 8),
+                  _ReviewHeatmap(reviews: reviews),
+                  const SizedBox(height: 8),
                   ...reviews.map(
                     (r) => ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(backgroundImage: NetworkImage(r.userAvatar)),
-                      title: Text(r.userName),
+                      title: Row(
+                        children: [
+                          Expanded(child: Text(r.userName)),
+                          if (r.verifiedPurchase)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.secondaryContainer,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.verified,
+                                    size: 12,
+                                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Verified',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Theme.of(context).colorScheme.onSecondaryContainer,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
                       subtitle: Text(r.content),
                       trailing: SizedBox(
                         width: 90,
@@ -494,11 +559,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           title: Text(b.name),
                           subtitle: Text('Save ${(b.discountPct * 100).toInt()}% on ${b.items.length} items'),
                           trailing: Column(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text('Rp ${b.bundleTotal.toStringAsFixed(0)}'),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               OutlinedButton(
                                 onPressed: () {
                                   for (final item in b.items) {
@@ -680,6 +746,135 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
 enum _DetailTab { overview, ingredients, reviews, qa }
 
+class _ReviewHighlightChip extends StatelessWidget {
+  final String label;
+
+  const _ReviewHighlightChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: scheme.outline),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _ReviewHeatmap extends StatelessWidget {
+  final List<ReviewItem> reviews;
+
+  const _ReviewHeatmap({required this.reviews});
+
+  @override
+  Widget build(BuildContext context) {
+    if (reviews.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final scheme = Theme.of(context).colorScheme;
+    final counts = <int, int>{5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
+    for (final r in reviews) {
+      final key = r.rating.round().clamp(1, 5);
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    final max = counts.values.reduce((a, b) => a > b ? a : b).toDouble();
+    return Column(
+      children: counts.entries.map((e) {
+        final pct = max == 0 ? 0.0 : e.value / max;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              SizedBox(width: 18, child: Text('${e.key}★', style: const TextStyle(fontSize: 11))),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: pct,
+                    minHeight: 6,
+                    backgroundColor: Colors.grey.shade200,
+                    color: scheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('${e.value}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _ReviewSummaryCard extends StatelessWidget {
+  final List<ReviewItem> reviews;
+
+  const _ReviewSummaryCard({required this.reviews});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (reviews.isEmpty) return const SizedBox.shrink();
+    final total = reviews.length;
+    final avg = reviews.fold<double>(0, (sum, r) => sum + r.rating) / total;
+    final verified = reviews.where((r) => r.verifiedPurchase).length;
+    final media = reviews.where((r) => r.hasMedia).length;
+    final verifiedPct = total == 0 ? 0 : (verified / total * 100).round();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(avg.toStringAsFixed(1), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              RatingStars(rating: avg),
+              const SizedBox(height: 4),
+              Text('$total reviews', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+            ],
+          ),
+          const Spacer(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: scheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: scheme.secondary.withValues(alpha: 0.35)),
+                ),
+                child: Text(
+                  '$verifiedPct% verified',
+                  style: TextStyle(fontSize: 11, color: scheme.onSecondaryContainer, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text('Media $media', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SafetyChip extends StatelessWidget {
   final String label;
   final bool good;
@@ -821,12 +1016,56 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-void _openImage(BuildContext context, String url) {
+void _openImageGallery(BuildContext context, List<String> images, int initialIndex) {
+  final controller = PageController(initialPage: initialIndex);
+  final pageIndex = ValueNotifier<int>(initialIndex);
   showDialog(
     context: context,
-    builder: (_) => Dialog(
-      child: InteractiveViewer(
-        child: Image.network(url, fit: BoxFit.contain),
+    builder: (_) => Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: controller,
+              itemCount: images.length,
+              onPageChanged: (i) => pageIndex.value = i,
+              itemBuilder: (context, index) {
+                final url = images[index];
+                return InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Center(
+                    child: Image.network(url, fit: BoxFit.contain),
+                  ),
+                );
+              },
+            ),
+            Positioned(
+              top: 12,
+              left: 12,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+            Positioned(
+              bottom: 16,
+              left: 0,
+              right: 0,
+              child: ValueListenableBuilder<int>(
+                valueListenable: pageIndex,
+                builder: (context, value, _) {
+                  return Text(
+                    '${value + 1} / ${images.length}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );

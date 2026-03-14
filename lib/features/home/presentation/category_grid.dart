@@ -17,7 +17,7 @@ class CategoryGrid extends StatelessWidget {
           children: [
             const Expanded(child: SectionHeader(title: 'Categories')),
             TextButton(
-              onPressed: () => context.go('/products'),
+              onPressed: () => context.go('/categories'),
               child: const Text('See all'),
             ),
           ],
@@ -33,12 +33,12 @@ class CategoryGrid extends StatelessWidget {
             children: categories
                 .map(
                   (c) => InkWell(
-                    onTap: () => context.go('/products?categoryId=${c.id}'),
+                    onTap: () => context.go('/categories?initialId=${c.id}'),
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Colors.pink.shade50,
+                      color: Theme.of(context).colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),

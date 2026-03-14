@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 import '../../../shared/models/brand.dart';
 import 'section_header.dart';
 
@@ -13,7 +14,10 @@ class BrandCarousel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: 'Brands'),
+        SectionHeader(
+          title: 'Brands',
+          onSeeAll: () => context.go('/brands'),
+        ),
         SizedBox(
           height: 96,
           child: ListView.separated(

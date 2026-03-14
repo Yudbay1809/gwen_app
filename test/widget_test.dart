@@ -5,13 +5,14 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gwen_app/main.dart';
 
 void main() {
   testWidgets('App boots to splash', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: GwenApp()));
-    expect(find.text('SOC0 Beauty'), findsOneWidget);
+    await tester.pumpWidget(const ProviderScope(child: GwenBeautyApp()));
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

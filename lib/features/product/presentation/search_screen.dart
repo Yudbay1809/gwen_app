@@ -77,6 +77,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ...data.categories.map((c) => c.name),
       ...data.brands.map((b) => b.name),
     ].map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final pool = [
+      ...data.allProducts.map((p) => p.name),
+      ...data.categories.map((c) => c.name),
+      ...data.brands.map((b) => b.name),
+    ];
     final rankedSuggestions = <String>[];
     for (final item in suggestList) {
       if (!rankedSuggestions.contains(item)) {
@@ -90,6 +95,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final selectedBrand = _filter.brandId == null
         ? null
         : data.brands.firstWhere((b) => b.id == _filter.brandId).name;
+
+    final didYouMean = _closestSuggestion(query.trim(), pool);
 
     return Scaffold(
       appBar: AppBar(
@@ -114,16 +121,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           ref.read(searchSuggestionProvider.notifier).setSuggestions([]);
                           return;
                         }
-                        final pool = [
-                          ...data.allProducts.map((p) => p.name),
-                          ...data.categories.map((c) => c.name),
-                          ...data.brands.map((b) => b.name),
-                        ];
-                        final suggestions = pool
-                            .where((e) => e.toLowerCase().contains(q))
-                            .toSet()
-                            .take(8)
-                            .toList();
+                        final suggestions = _fuzzySuggestions(pool, q);
                         ref.read(searchSuggestionProvider.notifier).setSuggestions(suggestions);
                       },
                       onSubmitted: (value) {
@@ -168,6 +166,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       label: 'Recommended',
                       selected: _filter.sort == ProductSort.recommended,
                       onTap: () => setState(() => _filter = _filter.copyWith(sort: ProductSort.recommended)),
+                    ),
+                    _SortChip(
+                      label: 'Best Deal',
+                      selected: _filter.sort == ProductSort.bestDeal,
+                      onTap: () => setState(() => _filter = _filter.copyWith(sort: ProductSort.bestDeal)),
                     ),
                     _SortChip(
                       label: 'Newest',
@@ -241,6 +244,45 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
             ),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    const Text('Smart:', style: TextStyle(fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      label: const Text('Best deal'),
+                      onPressed: () => setState(() => _filter = _filter.copyWith(sort: ProductSort.bestDeal)),
+                    ),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      label: const Text('Top rated'),
+                      onPressed: () => setState(() => _filter = _filter.copyWith(minRating: 4.5)),
+                    ),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      label: const Text('Most reviewed'),
+                      onPressed: () => setState(() => _filter = _filter.copyWith(minReviews: 100)),
+                    ),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      label: const Text('Under 100K'),
+                      onPressed: () => setState(() {
+                        _filter = _filter.copyWith(priceRange: const RangeValues(0, 100000));
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      label: const Text('In stock'),
+                      onPressed: () => setState(() => _filter = _filter.copyWith(inStockOnly: true)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Column(
@@ -264,18 +306,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     label: _filter.minReviews.toString(),
                     onChanged: (v) => setState(() => _filter = _filter.copyWith(minReviews: v.round())),
                   ),
-                  const Text('Price range', style: TextStyle(fontWeight: FontWeight.w700)),
-                  RangeSlider(
-                    values: _filter.priceRange,
-                    min: minPrice,
-                    max: maxPrice,
-                    divisions: 6,
-                    labels: RangeLabels(
-                      _filter.priceRange.start.toStringAsFixed(0),
-                      _filter.priceRange.end.toStringAsFixed(0),
-                    ),
-                    onChanged: (v) => setState(() => _filter = _filter.copyWith(priceRange: v)),
-                  ),
+                    const Text('Price range', style: TextStyle(fontWeight: FontWeight.w700)),
+                    Builder(builder: (context) {
+                      final start = _filter.priceRange.start.clamp(minPrice, maxPrice);
+                      final end = _filter.priceRange.end.clamp(minPrice, maxPrice);
+                      final values = RangeValues(math.min(start, end), math.max(start, end));
+                      return RangeSlider(
+                        values: values,
+                        min: minPrice,
+                        max: maxPrice,
+                        divisions: 6,
+                        labels: RangeLabels(
+                          values.start.toStringAsFixed(0),
+                          values.end.toStringAsFixed(0),
+                        ),
+                        onChanged: (v) => setState(() {
+                          final s = v.start.clamp(minPrice, maxPrice);
+                          final e = v.end.clamp(minPrice, maxPrice);
+                          _filter = _filter.copyWith(priceRange: RangeValues(math.min(s, e), math.max(s, e)));
+                        }),
+                      );
+                    }),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('In stock only'),
@@ -457,7 +508,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: _loading
                   ? const ProductGridShimmer()
                   : results.isEmpty
-                      ? const Center(child: Text('No results found'))
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text('No results found'),
+                            if (didYouMean != null) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text('Did you mean'),
+                                  const SizedBox(width: 6),
+                                  ActionChip(
+                                    label: Text(didYouMean),
+                                    onPressed: () {
+                                      ref.read(searchQueryProvider.notifier).setQuery(didYouMean);
+                                      _controller.text = didYouMean;
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        )
                       : GridView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -540,6 +613,7 @@ class _VoiceSheetState extends ConsumerState<_VoiceSheet> with SingleTickerProvi
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -559,7 +633,7 @@ class _VoiceSheetState extends ConsumerState<_VoiceSheet> with SingleTickerProvi
                       height: 72,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.pinkAccent.withAlpha(18),
+                        color: scheme.primaryContainer,
                       ),
                     ),
                   );
@@ -569,7 +643,7 @@ class _VoiceSheetState extends ConsumerState<_VoiceSheet> with SingleTickerProvi
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.pinkAccent.withAlpha(30),
+                  color: scheme.primary.withAlpha(40),
                 ),
                 child: const Icon(Icons.mic, size: 40),
               ),
@@ -601,6 +675,7 @@ class _VoiceWave extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
@@ -618,7 +693,7 @@ class _VoiceWave extends StatelessWidget {
                   height: h,
                   margin: const EdgeInsets.symmetric(horizontal: 3),
                   decoration: BoxDecoration(
-                    color: Colors.pinkAccent.withAlpha(160),
+                    color: scheme.primary.withAlpha(160),
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
@@ -681,6 +756,15 @@ List<Product> _applyFilter({required List<Product> products, required ProductFil
   }
 
   switch (filter.sort) {
+    case ProductSort.bestDeal:
+      result.sort((a, b) {
+        final aPct = a.price <= 0 ? 0 : (a.price - a.discountPrice) / a.price;
+        final bPct = b.price <= 0 ? 0 : (b.price - b.discountPrice) / b.price;
+        final byDeal = bPct.compareTo(aPct);
+        if (byDeal != 0) return byDeal;
+        return b.rating.compareTo(a.rating);
+      });
+      break;
     case ProductSort.priceLow:
       result.sort((a, b) => a.discountPrice.compareTo(b.discountPrice));
       break;
@@ -701,4 +785,58 @@ List<Product> _applyFilter({required List<Product> products, required ProductFil
   }
 
   return result;
+}
+
+
+List<String> _fuzzySuggestions(List<String> pool, String query) {
+  final q = query.toLowerCase();
+  final direct = pool.where((e) => e.toLowerCase().contains(q)).toSet().toList();
+  if (direct.length >= 8) return direct.take(8).toList();
+  final scored = <MapEntry<String, int>>[];
+  for (final item in pool.toSet()) {
+    final d = _levenshtein(item.toLowerCase(), q);
+    if (d <= 2) scored.add(MapEntry(item, d));
+  }
+  scored.sort((a, b) => a.value.compareTo(b.value));
+  final fuzzy = scored.map((e) => e.key).where((e) => !direct.contains(e)).toList();
+  return [...direct, ...fuzzy].take(8).toList();
+}
+
+String? _closestSuggestion(String query, List<String> pool) {
+  if (query.isEmpty) return null;
+  final q = query.toLowerCase();
+  var best = '';
+  var bestScore = 3;
+  for (final item in pool.toSet()) {
+    final d = _levenshtein(item.toLowerCase(), q);
+    if (d < bestScore) {
+      bestScore = d;
+      best = item;
+    }
+  }
+  return bestScore <= 2 ? best : null;
+}
+
+int _levenshtein(String a, String b) {
+  if (a == b) return 0;
+  if (a.isEmpty) return b.length;
+  if (b.isEmpty) return a.length;
+  final m = List.generate(a.length + 1, (_) => List<int>.filled(b.length + 1, 0));
+  for (var i = 0; i <= a.length; i++) {
+    m[i][0] = i;
+  }
+  for (var j = 0; j <= b.length; j++) {
+    m[0][j] = j;
+  }
+  for (var i = 1; i <= a.length; i++) {
+    for (var j = 1; j <= b.length; j++) {
+      final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+      m[i][j] = [
+        m[i - 1][j] + 1,
+        m[i][j - 1] + 1,
+        m[i - 1][j - 1] + cost,
+      ].reduce((v, e) => v < e ? v : e);
+    }
+  }
+  return m[a.length][b.length];
 }

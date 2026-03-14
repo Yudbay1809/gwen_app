@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/theme_provider.dart';
 import 'settings_storage_provider.dart';
 
@@ -53,6 +54,10 @@ class ProfilePreferencesScreen extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 24),
+          const Text('Verification (Demo)', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          _VerificationPrefsCard(),
+          const SizedBox(height: 24),
           Card(
             child: ListTile(
               leading: const Icon(Icons.info_outline),
@@ -95,6 +100,88 @@ class ProfilePreferencesScreen extends ConsumerWidget {
             label: const Text('Reset to default'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _VerificationPrefsCard extends StatefulWidget {
+  const _VerificationPrefsCard();
+
+  @override
+  State<_VerificationPrefsCard> createState() => _VerificationPrefsCardState();
+}
+
+class _VerificationPrefsCardState extends State<_VerificationPrefsCard> {
+  bool _emailVerified = false;
+  bool _phoneVerified = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _emailVerified = prefs.getBool('profile_email_verified') ?? false;
+      _phoneVerified = prefs.getBool('profile_phone_verified') ?? false;
+      _loading = false;
+    });
+  }
+
+  Future<void> _setEmail(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('profile_email_verified', value);
+    if (!mounted) return;
+    setState(() => _emailVerified = value);
+  }
+
+  Future<void> _setPhone(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('profile_phone_verified', value);
+    if (!mounted) return;
+    setState(() => _phoneVerified = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: _loading
+            ? const ListTile(
+                leading: CircularProgressIndicator(),
+                title: Text('Loading verification status...'),
+              )
+            : Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    title: const Text('Email verified'),
+                    subtitle: Text(
+                      _emailVerified ? 'Email verified' : 'Email not verified',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                    value: _emailVerified,
+                    onChanged: _setEmail,
+                  ),
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    title: const Text('Phone verified'),
+                    subtitle: Text(
+                      _phoneVerified ? 'Phone verified' : 'Phone not verified',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                    value: _phoneVerified,
+                    onChanged: _setPhone,
+                  ),
+                ],
+              ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -250,12 +251,21 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
                       'Price range: Rp ${_priceRange!.start.toStringAsFixed(0)} - Rp ${_priceRange!.end.toStringAsFixed(0)}',
                       style: const TextStyle(color: Colors.grey),
                     ),
-                    RangeSlider(
-                      values: _priceRange!,
-                      min: minPrice,
-                      max: maxPrice,
-                      onChanged: (v) => setState(() => _priceRange = v),
-                    ),
+                      Builder(builder: (context) {
+                        final start = _priceRange!.start.clamp(minPrice, maxPrice);
+                        final end = _priceRange!.end.clamp(minPrice, maxPrice);
+                        final values = RangeValues(math.min(start, end), math.max(start, end));
+                        return RangeSlider(
+                          values: values,
+                          min: minPrice,
+                          max: maxPrice,
+                          onChanged: (v) => setState(() {
+                            final s = v.start.clamp(minPrice, maxPrice);
+                            final e = v.end.clamp(minPrice, maxPrice);
+                            _priceRange = RangeValues(math.min(s, e), math.max(s, e));
+                          }),
+                        );
+                      }),
                   ],
                 ),
               ),

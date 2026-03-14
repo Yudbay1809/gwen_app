@@ -30,10 +30,12 @@ class CouponsScreen extends ConsumerWidget {
                   subtitle: Text('${c.description}\nMin Rp ${c.minSubtotal.toStringAsFixed(0)} · Exp ${c.expiry}'),
                   isThreeLine: true,
                   trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(c.code, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       ElevatedButton(
                         onPressed: !eligible
                             ? null

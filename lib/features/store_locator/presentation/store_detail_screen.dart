@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'store_data.dart';
@@ -19,7 +19,7 @@ class StoreDetailScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
               if (context.canPop()) {
-                context.pop();
+                if (context.canPop()) context.pop();
               } else {
                 context.go('/stores');
               }
@@ -38,7 +38,7 @@ class StoreDetailScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
-              context.pop();
+              if (context.canPop()) context.pop();
             } else {
               context.go('/stores');
             }

@@ -16,6 +16,40 @@ class _BannerSliderState extends State<BannerSlider> {
 
   @override
   Widget build(BuildContext context) {
+    final images = widget.images.where((e) => e.trim().isNotEmpty).toList();
+    if (images.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            height: 160,
+            color: Colors.grey.shade200,
+            child: const Center(child: Icon(Icons.image, color: Colors.grey)),
+          ),
+        ),
+      );
+    }
+    if (images.length == 1) {
+      final url = images.first;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: CachedNetworkImage(
+            imageUrl: url,
+            height: 160,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            placeholder: (context, _) => Container(color: Colors.grey.shade200),
+            errorWidget: (context, _, _) => Container(
+              color: Colors.grey.shade200,
+              child: const Icon(Icons.broken_image),
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -25,7 +59,7 @@ class _BannerSliderState extends State<BannerSlider> {
             child: Stack(
               children: [
                 CarouselSlider(
-                  items: widget.images
+                  items: images
                       .map(
                         (url) => CachedNetworkImage(
                           imageUrl: url,

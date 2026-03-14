@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/models/product.dart';
@@ -18,13 +19,17 @@ class FlashSaleSection extends ConsumerWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12),
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionHeader(title: 'Flash Sale', onSeeAll: onSeeAll),
+        SectionHeader(
+          title: 'Flash Sale',
+          onSeeAll: onSeeAll,
+          trailing: const _FlashCountdown(),
+        ),
         SizedBox(
           height: 248,
           child: ListView.separated(
@@ -47,6 +52,57 @@ class FlashSaleSection extends ConsumerWidget {
         ),
       ],
     ),
+    );
+  }
+}
+
+class _FlashCountdown extends StatefulWidget {
+  const _FlashCountdown();
+
+  @override
+  State<_FlashCountdown> createState() => _FlashCountdownState();
+}
+
+class _FlashCountdownState extends State<_FlashCountdown> {
+  late Duration _remaining;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = const Duration(hours: 2, minutes: 18, seconds: 45);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        final next = _remaining - const Duration(seconds: 1);
+        _remaining = next.isNegative ? Duration.zero : next;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = _remaining.inHours.toString().padLeft(2, '0');
+    final m = (_remaining.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (_remaining.inSeconds % 60).toString().padLeft(2, '0');
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outline.withAlpha(120)),
+      ),
+      child: Text(
+        '$h:$m:$s',
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

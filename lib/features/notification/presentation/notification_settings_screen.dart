@@ -32,6 +32,27 @@ class NotificationSettingsScreen extends ConsumerWidget {
             onChanged: (v) => ref.read(notificationSettingsProvider.notifier).toggleNews(v),
           ),
           const Divider(),
+          const Text('Personalization', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('Price drop alerts'),
+            subtitle: const Text('Get notified when wishlist items drop in price'),
+            value: settings.priceDrops,
+            onChanged: (v) => ref.read(notificationSettingsProvider.notifier).togglePriceDrops(v),
+          ),
+          SwitchListTile(
+            title: const Text('Back in stock'),
+            subtitle: const Text('Restock updates for items you saved'),
+            value: settings.restock,
+            onChanged: (v) => ref.read(notificationSettingsProvider.notifier).toggleRestock(v),
+          ),
+          SwitchListTile(
+            title: const Text('Rewards & check-in'),
+            subtitle: const Text('Daily streaks, bonus points, and missions'),
+            value: settings.rewards,
+            onChanged: (v) => ref.read(notificationSettingsProvider.notifier).toggleRewards(v),
+          ),
+          const Divider(),
           const Text('Behavior', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           SwitchListTile(

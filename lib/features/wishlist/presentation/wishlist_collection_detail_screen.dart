@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/widgets/product_card.dart';
+import '../../../shared/widgets/motion.dart';
 import 'wishlist_collections_provider.dart';
 import 'wishlist_share_provider.dart';
 import 'dart:convert';
@@ -46,67 +47,86 @@ class WishlistCollectionDetailScreen extends ConsumerWidget {
             icon: const Icon(Icons.delete_outline),
             onPressed: () {
               ref.read(wishlistCollectionsProvider.notifier).deleteCollection(collection.name);
-              context.pop();
+              if (context.canPop()) context.pop();
             },
           ),
         ],
       ),
       body: collection.items.isEmpty
           ? const Center(child: Text('Collection is empty'))
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.62,
-              ),
-              itemCount: collection.items.length,
-              itemBuilder: (context, index) {
-                final product = collection.items[index];
-                return Stack(
-                  children: [
-                    ProductCard(
-                      product: product,
-                      onTap: () => context.go('/product/${product.id}'),
-                    ),
-                    Positioned(
-                      right: 6,
-                      bottom: 6,
-                      child: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'remove') {
-                            ref
-                                .read(wishlistCollectionsProvider.notifier)
-                                .removeFromCollection(collection.name, product);
-                          } else if (value.startsWith('move:')) {
-                            final target = value.replaceFirst('move:', '');
-                            ref.read(wishlistCollectionsProvider.notifier).moveItem(
-                                  collection.name,
-                                  target,
-                                  product,
-                                );
-                          }
-                        },
-                        itemBuilder: (context) {
-                          final otherCollections =
-                              collections.where((c) => c.name != collection.name).toList();
-                          return [
-                            const PopupMenuItem(value: 'remove', child: Text('Remove')),
-                            if (otherCollections.isNotEmpty) const PopupMenuDivider(),
-                            ...otherCollections.map(
-                              (c) => PopupMenuItem(
-                                value: 'move:${c.name}',
-                                child: Text('Move to ${c.name}'),
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              children: [
+                MotionFadeSlide(
+                  beginOffset: const Offset(0, 0.08),
+                  child: _CollectionHero(
+                    name: collection.name,
+                    total: collection.items.length,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: 0.58,
+                  ),
+                  itemCount: collection.items.length,
+                  itemBuilder: (context, index) {
+                    final product = collection.items[index];
+                    return MotionFadeSlide(
+                      delay: Duration(milliseconds: 60 * (index % 6)),
+                      beginOffset: const Offset(0, 0.06),
+                      child: MotionPressScale(
+                        onTap: () => context.go('/product/${product.id}'),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Stack(
+                          children: [
+                            ProductCard(product: product),
+                            Positioned(
+                              right: 6,
+                              bottom: 6,
+                              child: PopupMenuButton<String>(
+                                onSelected: (value) {
+                                  if (value == 'remove') {
+                                    ref
+                                        .read(wishlistCollectionsProvider.notifier)
+                                        .removeFromCollection(collection.name, product);
+                                  } else if (value.startsWith('move:')) {
+                                    final target = value.replaceFirst('move:', '');
+                                    ref.read(wishlistCollectionsProvider.notifier).moveItem(
+                                          collection.name,
+                                          target,
+                                          product,
+                                        );
+                                  }
+                                },
+                                itemBuilder: (context) {
+                                  final otherCollections =
+                                      collections.where((c) => c.name != collection.name).toList();
+                                  return [
+                                    const PopupMenuItem(value: 'remove', child: Text('Remove')),
+                                    if (otherCollections.isNotEmpty) const PopupMenuDivider(),
+                                    ...otherCollections.map(
+                                      (c) => PopupMenuItem(
+                                        value: 'move:${c.name}',
+                                        child: Text('Move to ${c.name}'),
+                                      ),
+                                    ),
+                                  ];
+                                },
                               ),
                             ),
-                          ];
-                        },
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
+                    );
+                  },
+                ),
+              ],
             ),
     );
   }
@@ -167,6 +187,48 @@ class WishlistCollectionDetailScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CollectionHero extends StatelessWidget {
+  final String name;
+  final int total;
+
+  const _CollectionHero({
+    required this.name,
+    required this.total,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            scheme.primaryContainer.withValues(alpha: 0.9),
+            scheme.surfaceContainerHighest,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.folder_open),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              name,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Text('$total items', style: TextStyle(color: scheme.onSurfaceVariant)),
+        ],
       ),
     );
   }

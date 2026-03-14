@@ -1,8 +1,9 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../shared/models/category.dart';
 import '../../../shared/models/brand.dart';
 
-enum ProductSort { recommended, newest, priceLow, priceHigh, rating, reviews }
+enum ProductSort { recommended, bestDeal, newest, priceLow, priceHigh, rating, reviews }
 
 class ProductFilter {
   final ProductSort sort;
@@ -119,6 +120,11 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
                 onSelected: (_) => setState(() => _sort = ProductSort.recommended),
               ),
               ChoiceChip(
+                label: const Text('Best Deal'),
+                selected: _sort == ProductSort.bestDeal,
+                onSelected: (_) => setState(() => _sort = ProductSort.bestDeal),
+              ),
+              ChoiceChip(
                 label: const Text('Newest'),
                 selected: _sort == ProductSort.newest,
                 onSelected: (_) => setState(() => _sort = ProductSort.newest),
@@ -212,20 +218,29 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
             value: _inStockOnly,
             onChanged: (v) => setState(() => _inStockOnly = v),
           ),
-          const SizedBox(height: 8),
-          const Text('Price range', style: TextStyle(fontWeight: FontWeight.w700)),
-          RangeSlider(
-            values: _range,
-            min: widget.minPrice,
-            max: widget.maxPrice,
-            divisions: 6,
-            labels: RangeLabels(
-              _range.start.toStringAsFixed(0),
-              _range.end.toStringAsFixed(0),
-            ),
-            onChanged: (v) => setState(() => _range = v),
-          ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
+            const Text('Price range', style: TextStyle(fontWeight: FontWeight.w700)),
+            Builder(builder: (context) {
+              final start = _range.start.clamp(widget.minPrice, widget.maxPrice);
+              final end = _range.end.clamp(widget.minPrice, widget.maxPrice);
+              final values = RangeValues(math.min(start, end), math.max(start, end));
+              return RangeSlider(
+                values: values,
+                min: widget.minPrice,
+                max: widget.maxPrice,
+                divisions: 6,
+                labels: RangeLabels(
+                  values.start.toStringAsFixed(0),
+                  values.end.toStringAsFixed(0),
+                ),
+                onChanged: (v) => setState(() {
+                  final s = v.start.clamp(widget.minPrice, widget.maxPrice);
+                  final e = v.end.clamp(widget.minPrice, widget.maxPrice);
+                  _range = RangeValues(math.min(s, e), math.max(s, e));
+                }),
+              );
+            }),
+            const SizedBox(height: 8),
           const Text('Discount range (%)', style: TextStyle(fontWeight: FontWeight.w700)),
           RangeSlider(
             values: _discountRange,

@@ -72,9 +72,6 @@ final achievementsProvider = Provider<List<Achievement>>((ref) {
       _ => 0,
     };
     final unlocked = earned.contains(def.id) || count >= def.target;
-    if (count >= def.target) {
-      ref.read(earnedAchievementsProvider.notifier).mark(def.id);
-    }
     return Achievement(
       id: def.id,
       title: def.title,

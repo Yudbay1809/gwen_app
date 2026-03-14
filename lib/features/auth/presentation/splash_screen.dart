@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'auth_state_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -14,6 +15,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   bool _navigated = false;
   bool _visible = false;
   bool _authReady = false;
+  bool _prefsReady = false;
+  bool _onboardingSeen = false;
   String _targetRoute = '/onboarding';
   late final AnimationController _progressController;
 
@@ -29,6 +32,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
         }
       });
     _progressController.forward();
+    _loadPrefs();
     Future.delayed(const Duration(milliseconds: 120), () {
       if (!mounted) return;
       setState(() => _visible = true);
@@ -41,8 +45,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     super.dispose();
   }
 
+  Future<void> _loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    _onboardingSeen = prefs.getBool('onboarding_seen') ?? false;
+    _prefsReady = true;
+    _tryNavigate();
+  }
+
   void _tryNavigate() {
-    if (_navigated || !_authReady || !_progressController.isCompleted) return;
+    if (_navigated || !_authReady || !_prefsReady || !_progressController.isCompleted) return;
     _navigated = true;
     if (!mounted) return;
     context.go(_targetRoute);
@@ -50,19 +61,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     ref.listen<AuthState>(authProvider, (prev, next) {
       if (next.isLoading) return;
       if (prev?.isLoading == next.isLoading && prev?.isLoggedIn == next.isLoggedIn) return;
       if (!mounted) return;
       _authReady = true;
-      _targetRoute = next.isLoggedIn ? '/shop' : '/onboarding';
+      _targetRoute = next.isLoggedIn ? '/shop' : (_onboardingSeen ? '/login' : '/onboarding');
       _tryNavigate();
     });
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFFFF1E9), Color(0xFFFDE7F1)],
+            colors: [scheme.surface, scheme.primaryContainer],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -80,16 +92,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    width: 72,
-                    height: 72,
+                    width: 96,
+                    height: 96,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      color: scheme.surface,
+                      borderRadius: BorderRadius.circular(28),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 20, offset: const Offset(0, 8)),
+                        BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 24, offset: const Offset(0, 10)),
                       ],
                     ),
-                    child: const Icon(Icons.spa_outlined, size: 36, color: Colors.pinkAccent),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.asset(
+                        'assets/logos/gwen_logo.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   const Text('GWEN Beauty', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
@@ -104,7 +122,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                         value: _progressController.value,
                         minHeight: 4,
                         backgroundColor: Colors.black.withAlpha(15),
-                        color: Colors.pinkAccent,
+                        color: scheme.primary,
                       ),
                     ),
                   ),

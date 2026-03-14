@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import '../../../shared/widgets/price_widget.dart';
+import '../../../shared/widgets/empty_state.dart';
 import 'orders_providers.dart';
 import 'orders_downloads_provider.dart';
 import '../../home/presentation/home_providers.dart';
@@ -30,6 +31,30 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       final matchStatus = _status == 'All' || o.status == _status;
       return matchQuery && matchStatus;
     }).toList();
+
+    if (orders.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Orders')),
+        body: EmptyState(
+          title: 'Belum ada pesanan',
+          subtitle: 'Yuk mulai belanja dan temukan produk favoritmu.',
+          icon: Icons.receipt_long,
+          actionLabel: 'Belanja sekarang',
+          onAction: () => context.go('/shop'),
+        ),
+      );
+    }
+
+    if (filtered.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Orders')),
+        body: const EmptyState(
+          title: 'Tidak ada hasil',
+          subtitle: 'Coba ubah filter atau kata kunci pencarian.',
+          icon: Icons.search_off,
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Orders')),
@@ -69,15 +94,16 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                     _MiniTimeline(status: order.status),
                   ],
                 ),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    PriceWidget(price: order.total),
-                    const SizedBox(height: 4),
-                    _StatusChip(status: order.status),
-                  ],
-                ),
+                  trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      PriceWidget(price: order.total),
+                      const SizedBox(height: 2),
+                      _StatusChip(status: order.status),
+                    ],
+                  ),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: order.id)),
@@ -124,7 +150,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
-              context.pop();
+              if (context.canPop()) context.pop();
             } else {
               context.go('/orders');
             }
@@ -164,11 +190,12 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               title: Text(item.name),
               subtitle: Text('Qty ${item.quantity}'),
               trailing: Column(
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   PriceWidget(price: item.price * item.quantity),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   _StatusChip(status: item.status),
                 ],
               ),
@@ -233,6 +260,24 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           const Text('Tracking Map Preview', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           _MiniMapPreview(orderId: orderId),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.assignment_return_outlined),
+              title: const Text('Return & refund'),
+              subtitle: const Text(
+                'Eligible within 7 days after delivery. Items must be unopened.',
+              ),
+              trailing: TextButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Return request submitted (demo)')),
+                  );
+                },
+                child: const Text('Request'),
+              ),
+            ),
+          ),
           const Divider(),
           if (detail.order.status == 'Delivered') ...[
             const Text('Rate Your Order', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -666,9 +711,12 @@ class _OrderMapPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           height: 190,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFFE8F5E9), Color(0xFFE3F2FD)],
+              colors: [
+                Theme.of(context).colorScheme.primaryContainer,
+                Theme.of(context).colorScheme.secondaryContainer,
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

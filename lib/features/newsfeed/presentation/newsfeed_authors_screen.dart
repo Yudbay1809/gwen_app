@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'newsfeed_providers.dart';
 import 'article_follow_provider.dart';
+import '../../../shared/widgets/motion.dart';
 
 class NewsfeedAuthorsScreen extends ConsumerStatefulWidget {
   const NewsfeedAuthorsScreen({super.key});
@@ -37,6 +38,10 @@ class _NewsfeedAuthorsScreenState extends ConsumerState<NewsfeedAuthorsScreen> {
       ),
       body: Column(
         children: [
+          MotionFadeSlide(
+            beginOffset: const Offset(0, 0.08),
+            child: _AuthorsHero(total: authors.length),
+          ),
           if (_selectMode)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -108,15 +113,65 @@ class _NewsfeedAuthorsScreenState extends ConsumerState<NewsfeedAuthorsScreen> {
                     secondary: Icon(isFollowed ? Icons.person : Icons.person_outline),
                   );
                 }
-                return ListTile(
-                  title: Text(author),
-                  trailing: TextButton(
-                    onPressed: () => ref.read(articleFollowProvider.notifier).toggle(author),
-                    child: Text(isFollowed ? 'Following' : 'Follow'),
+                return MotionFadeSlide(
+                  delay: Duration(milliseconds: 60 * (index % 6)),
+                  beginOffset: const Offset(0, 0.06),
+                  child: Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 0.8,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: ListTile(
+                      title: Text(author),
+                      leading: CircleAvatar(
+                        child: Text(author.isEmpty ? '?' : author[0]),
+                      ),
+                      trailing: TextButton(
+                        onPressed: () => ref.read(articleFollowProvider.notifier).toggle(author),
+                        child: Text(isFollowed ? 'Following' : 'Follow'),
+                      ),
+                    ),
                   ),
                 );
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthorsHero extends StatelessWidget {
+  final int total;
+
+  const _AuthorsHero({required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            scheme.primaryContainer.withValues(alpha: 0.9),
+            scheme.surfaceContainerHighest,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.people_outline),
+          const SizedBox(width: 8),
+          Text(
+            '$total authors',
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ],
       ),
