@@ -25,11 +25,11 @@ class HomeData {
   });
 
   List<Product> get allProducts => [
-        ...flashSale,
-        ...bestSeller,
-        ...newArrivals,
-        ...exclusive,
-      ];
+    ...flashSale,
+    ...bestSeller,
+    ...newArrivals,
+    ...exclusive,
+  ];
 
   Map<String, dynamic> toJson() {
     return {
@@ -49,7 +49,9 @@ class HomeData {
       categories: (json['categories'] as List)
           .map((e) => Category.fromJson(e as Map<String, dynamic>))
           .toList(),
-      brands: (json['brands'] as List).map((e) => Brand.fromJson(e as Map<String, dynamic>)).toList(),
+      brands: (json['brands'] as List)
+          .map((e) => Brand.fromJson(e as Map<String, dynamic>))
+          .toList(),
       flashSale: (json['flashSale'] as List)
           .map((e) => Product.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -83,11 +85,36 @@ final homeDataProvider = Provider<HomeData>((ref) {
   ];
 
   final brands = [
-    const Brand(id: 1, name: 'Aurora', logo: 'https://images.unsplash.com/photo-1522336572468-97b06e8ef143?w=200&q=80'),
-    const Brand(id: 2, name: 'Velvet', logo: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=200&q=80'),
-    const Brand(id: 3, name: 'Luma', logo: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&q=80'),
-    const Brand(id: 4, name: 'Bloom', logo: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=200&q=80'),
-    const Brand(id: 5, name: 'Elys', logo: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&q=80'),
+    const Brand(
+      id: 1,
+      name: 'Aurora',
+      logo:
+          'https://images.unsplash.com/photo-1522336572468-97b06e8ef143?w=200&q=80',
+    ),
+    const Brand(
+      id: 2,
+      name: 'Velvet',
+      logo:
+          'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=200&q=80',
+    ),
+    const Brand(
+      id: 3,
+      name: 'Luma',
+      logo:
+          'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&q=80',
+    ),
+    const Brand(
+      id: 4,
+      name: 'Bloom',
+      logo:
+          'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=200&q=80',
+    ),
+    const Brand(
+      id: 5,
+      name: 'Elys',
+      logo:
+          'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&q=80',
+    ),
   ];
 
   final flashSale = _dummyProducts(
@@ -136,15 +163,24 @@ final homeDataProvider = Provider<HomeData>((ref) {
 
 class _HomeCache {
   static const _key = 'home_cache_v1';
+  static const _savedAtKey = 'home_cache_saved_at_v1';
+  static const Duration _staleAfter = Duration(hours: 6);
 
   static Future<HomeData?> load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
-    if (raw == null) return null;
+    final savedAtMs = prefs.getInt(_savedAtKey);
+    if (raw == null || savedAtMs == null) return null;
+    final age = DateTime.now().millisecondsSinceEpoch - savedAtMs;
+    if (age > _staleAfter.inMilliseconds) {
+      await invalidate();
+      return null;
+    }
     try {
       final jsonMap = jsonDecode(raw) as Map<String, dynamic>;
       return HomeData.fromJson(jsonMap);
     } catch (_) {
+      await invalidate();
       return null;
     }
   }
@@ -152,6 +188,13 @@ class _HomeCache {
   static Future<void> save(HomeData data) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, jsonEncode(data.toJson()));
+    await prefs.setInt(_savedAtKey, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  static Future<void> invalidate() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key);
+    await prefs.remove(_savedAtKey);
   }
 }
 
@@ -172,7 +215,10 @@ class HomeAllProductsFilterState {
 
   const HomeAllProductsFilterState({required this.filter, required this.query});
 
-  HomeAllProductsFilterState copyWith({HomeAllProductsFilter? filter, String? query}) {
+  HomeAllProductsFilterState copyWith({
+    HomeAllProductsFilter? filter,
+    String? query,
+  }) {
     return HomeAllProductsFilterState(
       filter: filter ?? this.filter,
       query: query ?? this.query,
@@ -180,14 +226,18 @@ class HomeAllProductsFilterState {
   }
 }
 
-class HomeAllProductsFilterNotifier extends Notifier<HomeAllProductsFilterState> {
+class HomeAllProductsFilterNotifier
+    extends Notifier<HomeAllProductsFilterState> {
   static const keyFilter = 'home_all_filter';
   static const keyQuery = 'home_all_query';
 
   @override
   HomeAllProductsFilterState build() {
     _load();
-    return const HomeAllProductsFilterState(filter: HomeAllProductsFilter.all, query: '');
+    return const HomeAllProductsFilterState(
+      filter: HomeAllProductsFilter.all,
+      query: '',
+    );
   }
 
   Future<void> _load() async {
@@ -218,15 +268,18 @@ class HomeAllProductsFilterNotifier extends Notifier<HomeAllProductsFilterState>
   }
 
   void reset() {
-    state = const HomeAllProductsFilterState(filter: HomeAllProductsFilter.all, query: '');
+    state = const HomeAllProductsFilterState(
+      filter: HomeAllProductsFilter.all,
+      query: '',
+    );
     _save();
   }
 }
 
 final homeAllProductsFilterProvider =
     NotifierProvider<HomeAllProductsFilterNotifier, HomeAllProductsFilterState>(
-  HomeAllProductsFilterNotifier.new,
-);
+      HomeAllProductsFilterNotifier.new,
+    );
 
 class SearchQueryNotifier extends Notifier<String> {
   @override
@@ -235,13 +288,17 @@ class SearchQueryNotifier extends Notifier<String> {
   void setQuery(String value) => state = value;
 }
 
-final searchQueryProvider = NotifierProvider<SearchQueryNotifier, String>(SearchQueryNotifier.new);
+final searchQueryProvider = NotifierProvider<SearchQueryNotifier, String>(
+  SearchQueryNotifier.new,
+);
 
 final searchResultsProvider = Provider<List<Product>>((ref) {
   final query = ref.watch(searchQueryProvider).trim().toLowerCase();
   final data = ref.watch(homeDataProvider);
   if (query.isEmpty) return data.allProducts;
-  return data.allProducts.where((p) => p.name.toLowerCase().contains(query)).toList();
+  return data.allProducts
+      .where((p) => p.name.toLowerCase().contains(query))
+      .toList();
 });
 
 class HomeInfiniteProductsState {
@@ -328,8 +385,8 @@ class HomeInfiniteProductsNotifier extends Notifier<HomeInfiniteProductsState> {
 
 final homeInfiniteProductsProvider =
     NotifierProvider<HomeInfiniteProductsNotifier, HomeInfiniteProductsState>(
-  HomeInfiniteProductsNotifier.new,
-);
+      HomeInfiniteProductsNotifier.new,
+    );
 
 List<Product> _dummyProducts(
   int count, {
@@ -347,7 +404,8 @@ List<Product> _dummyProducts(
     return Product(
       id: startId + i,
       name: 'Beauty Product ${startId + i}',
-      image: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800&q=80&sig=${startId + i}',
+      image:
+          'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800&q=80&sig=${startId + i}',
       price: price,
       discountPrice: discountPrice,
       rating: 4.2 - (i % 3) * 0.3,

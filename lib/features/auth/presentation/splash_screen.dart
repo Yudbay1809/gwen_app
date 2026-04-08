@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:async';
 import 'auth_state_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,7 +12,8 @@ class SplashScreen extends ConsumerStatefulWidget {
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen>
+    with SingleTickerProviderStateMixin {
   bool _navigated = false;
   bool _visible = false;
   bool _authReady = false;
@@ -19,21 +21,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   bool _onboardingSeen = false;
   String _targetRoute = '/onboarding';
   late final AnimationController _progressController;
+  Timer? _visibilityTimer;
 
   @override
   void initState() {
     super.initState();
-    _progressController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2600),
-    )..addStatusListener((status) {
-        if (status == AnimationStatus.completed) {
-          _tryNavigate();
-        }
-      });
+    _progressController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 2600),
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            _tryNavigate();
+          }
+        });
     _progressController.forward();
     _loadPrefs();
-    Future.delayed(const Duration(milliseconds: 120), () {
+    _visibilityTimer = Timer(const Duration(milliseconds: 120), () {
       if (!mounted) return;
       setState(() => _visible = true);
     });
@@ -41,6 +45,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
 
   @override
   void dispose() {
+    _visibilityTimer?.cancel();
     _progressController.dispose();
     super.dispose();
   }
@@ -53,9 +58,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   }
 
   void _tryNavigate() {
-    if (_navigated || !_authReady || !_prefsReady || !_progressController.isCompleted) return;
+    if (_navigated ||
+        !_authReady ||
+        !_prefsReady ||
+        !_progressController.isCompleted) {
+      return;
+    }
     _navigated = true;
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     context.go(_targetRoute);
   }
 
@@ -63,11 +75,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     ref.listen<AuthState>(authProvider, (prev, next) {
-      if (next.isLoading) return;
-      if (prev?.isLoading == next.isLoading && prev?.isLoggedIn == next.isLoggedIn) return;
-      if (!mounted) return;
+      if (next.isLoading) {
+        return;
+      }
+      if (prev?.isLoading == next.isLoading &&
+          prev?.isLoggedIn == next.isLoggedIn) {
+        return;
+      }
+      if (!mounted) {
+        return;
+      }
       _authReady = true;
-      _targetRoute = next.isLoggedIn ? '/shop' : (_onboardingSeen ? '/login' : '/onboarding');
+      _targetRoute = next.isLoggedIn
+          ? '/shop'
+          : (_onboardingSeen ? '/login' : '/onboarding');
       _tryNavigate();
     });
     return Scaffold(
@@ -98,7 +119,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                       color: scheme.surface,
                       borderRadius: BorderRadius.circular(28),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 24, offset: const Offset(0, 10)),
+                        BoxShadow(
+                          color: Colors.black.withAlpha(20),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
+                        ),
                       ],
                     ),
                     child: ClipRRect(
@@ -110,9 +135,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('GWEN Beauty', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'GWEN Beauty',
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(height: 6),
-                  const Text('Glow made effortless', style: TextStyle(color: Colors.black54)),
+                  const Text(
+                    'Glow made effortless',
+                    style: TextStyle(color: Colors.black54),
+                  ),
                   const SizedBox(height: 18),
                   SizedBox(
                     width: 180,

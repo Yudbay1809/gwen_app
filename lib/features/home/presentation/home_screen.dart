@@ -13,6 +13,7 @@ import 'category_grid.dart';
 import 'brand_carousel.dart';
 import 'search_bar_widget.dart';
 import 'home_providers.dart';
+import 'home_screen_logic.dart';
 import 'home_shimmer.dart';
 import '../../../shared/widgets/cart_badge_button.dart';
 import '../../notification/presentation/notification_providers.dart';
@@ -40,9 +41,10 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with SingleTickerProviderStateMixin {
   _HomeTab _tab = _HomeTab.flash;
-  _HomeQuickFilter _quickFilter = _HomeQuickFilter.none;
+  HomeQuickFilter _quickFilter = HomeQuickFilter.none;
   final _scrollController = ScrollController();
   final _allQueryController = TextEditingController();
   static const _scrollKeyPrefix = 'home_all_scroll_';
@@ -68,7 +70,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
       vsync: this,
       duration: const Duration(milliseconds: 220),
     );
-    _filterFade = CurvedAnimation(parent: _filterFadeController, curve: Curves.easeOutCubic);
+    _filterFade = CurvedAnimation(
+      parent: _filterFadeController,
+      curve: Curves.easeOutCubic,
+    );
     _filterFadeController.value = 1;
     _scrollController.addListener(_handleScroll);
     _restoreScroll();
@@ -88,7 +93,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   void _handleScroll() {
     final offset = _scrollController.offset;
     if (!_showCategory && offset > 220) setState(() => _showCategory = true);
-    if (!_showPersonalized && offset > 380) setState(() => _showPersonalized = true);
+    if (!_showPersonalized && offset > 380) {
+      setState(() => _showPersonalized = true);
+    }
     if (!_showBrand && offset > 520) setState(() => _showBrand = true);
     if (!_showExclusive && offset > 680) setState(() => _showExclusive = true);
     if (!_showBackToTop && offset > 900) setState(() => _showBackToTop = true);
@@ -99,7 +106,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
       ref.read(homeInfiniteProductsProvider.notifier).loadMore();
     }
     _scrollSaveTimer?.cancel();
-    _scrollSaveTimer = Timer(const Duration(milliseconds: 400), _saveScrollImmediate);
+    _scrollSaveTimer = Timer(
+      const Duration(milliseconds: 400),
+      _saveScrollImmediate,
+    );
   }
 
   Future<void> _restoreScroll() async {
@@ -120,7 +130,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     await prefs.setDouble(_scrollKeyFor(filter), _scrollController.offset);
   }
 
-  String _scrollKeyFor(HomeAllProductsFilter filter) => '$_scrollKeyPrefix${filter.name}';
+  String _scrollKeyFor(HomeAllProductsFilter filter) =>
+      '$_scrollKeyPrefix${filter.name}';
 
   Future<void> _jumpToKey(GlobalKey key) async {
     final ctx = key.currentContext;
@@ -162,7 +173,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
         }
       });
     });
-    ref.listen<HomeAllProductsFilterState>(homeAllProductsFilterProvider, (prev, next) {
+    ref.listen<HomeAllProductsFilterState>(homeAllProductsFilterProvider, (
+      prev,
+      next,
+    ) {
       if (_allQueryController.text != next.query) {
         _allQueryController.text = next.query;
       }
@@ -192,12 +206,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
           final auth = ref.watch(authProvider);
           final beautyProfile = ref.watch(beautyProfileProvider);
           final compareItems = ref.watch(productCompareProvider);
-          final filteredItems = _applyFilter(infiniteState.items, allFilter, allQuery, _quickFilter);
-          final sortedFilteredItems = _sortByStock(filteredItems);
+          final filteredItems = applyHomeFilter(
+            infiniteState.items,
+            allFilter,
+            allQuery,
+            _quickFilter,
+          );
+          final sortedFilteredItems = sortProductsByStock(filteredItems);
           final showEmpty = filteredItems.isEmpty && !infiniteState.isLoading;
           final wishlistItems = ref.watch(wishlistProvider);
           final priceHistory = ref.watch(wishlistPriceHistoryProvider);
-          final priceDropItems = _buildPriceDropItems(wishlistItems, priceHistory);
+          final priceDropItems = _buildPriceDropItems(
+            wishlistItems,
+            priceHistory,
+          );
           if (!_showPriceDropChip && priceDropItems.isNotEmpty) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) setState(() => _showPriceDropChip = true);
@@ -206,604 +228,707 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
           return Stack(
             children: [
               RefreshIndicator(
-          onRefresh: () async => ref.refresh(homeLoadProvider),
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverAppBar(
-                pinned: true,
-                expandedHeight: 150,
-                backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                surfaceTintColor: Colors.transparent,
-                title: Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(
-                        'assets/logos/gwen_logo.png',
-                        height: 28,
-                        width: 28,
-                        fit: BoxFit.cover,
+                onRefresh: () async => ref.refresh(homeLoadProvider),
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverAppBar(
+                      pinned: true,
+                      expandedHeight: 150,
+                      backgroundColor: Theme.of(
+                        context,
+                      ).scaffoldBackgroundColor,
+                      surfaceTintColor: Colors.transparent,
+                      title: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.asset(
+                              'assets/logos/gwen_logo.png',
+                              height: 28,
+                              width: 28,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Text('Shop'),
+                          if (priceDropItems.isNotEmpty) ...[
+                            const SizedBox(width: 10),
+                            AnimatedScale(
+                              scale: _showPriceDropChip ? 1 : 0.9,
+                              duration: const Duration(milliseconds: 420),
+                              curve: Curves.easeOutBack,
+                              child: AnimatedOpacity(
+                                opacity: _showPriceDropChip ? 1 : 0,
+                                duration: const Duration(milliseconds: 260),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Theme.of(context).colorScheme.secondary
+                                            .withValues(alpha: 0.9),
+                                        Theme.of(context).colorScheme.primary
+                                            .withValues(alpha: 0.9),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(999),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .shadow
+                                            .withValues(alpha: 0.12),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.trending_down,
+                                        size: 12,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Price drops',
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onPrimary,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text('Shop'),
-                    if (priceDropItems.isNotEmpty) ...[
-                      const SizedBox(width: 10),
-                      AnimatedScale(
-                        scale: _showPriceDropChip ? 1 : 0.9,
-                        duration: const Duration(milliseconds: 420),
-                        curve: Curves.easeOutBack,
-                        child: AnimatedOpacity(
-                          opacity: _showPriceDropChip ? 1 : 0,
-                          duration: const Duration(milliseconds: 260),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Theme.of(context).colorScheme.secondary.withValues(alpha: 0.9),
-                                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
+                      bottom: PreferredSize(
+                        preferredSize: const Size.fromHeight(32),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Text(
+                            'Curated picks for your glow routine',
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      actions: [
+                        IconButton(
+                          onPressed: () => context.go('/global-search'),
+                          icon: const Icon(Icons.manage_search),
+                        ),
+                        IconButton(
+                          onPressed: () => context.go('/notifications'),
+                          icon: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Icon(Icons.notifications_none),
+                              if (unread > 0)
+                                Positioned(
+                                  right: -6,
+                                  top: -6,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 18,
+                                    ),
+                                    child: Text(
+                                      '$unread',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const CartBadgeButton(),
+                      ],
+                      flexibleSpace: FlexibleSpaceBar(
+                        collapseMode: CollapseMode.parallax,
+                        background: Container(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                          child: Align(
+                            alignment: Alignment.bottomLeft,
+                            child: Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(top: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Theme.of(context).colorScheme.surface,
+                                    Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(10),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
                                 ],
                               ),
-                              borderRadius: BorderRadius.circular(999),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.12),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.max,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary.withAlpha(24),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      Icons.waving_hand_rounded,
+                                      size: 18,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Halo, Gwen',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Selamat datang di GWEN Cosmetic',
+                                        style: TextStyle(
+                                          color: Colors.black87.withAlpha(130),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _SearchBarHeaderDelegate(
+                        child: Container(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          child: const SearchBarWidget(),
+                        ),
+                      ),
+                    ),
+                    if (!auth.isLoggedIn && !_guestBannerDismissed)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.trending_down, size: 12, color: Colors.white),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Price drops',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onPrimary,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 10,
+                                const Icon(Icons.lock_outline, size: 18),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Login untuk menyimpan wishlist & riwayat pesanan.',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
+                                ),
+                                TextButton(
+                                  onPressed: () => context.go('/login'),
+                                  child: const Text('Login'),
+                                ),
+                                TextButton(
+                                  onPressed: () => context.go('/register'),
+                                  child: const Text('Register'),
+                                ),
+                                IconButton(
+                                  onPressed: () => setState(
+                                    () => _guestBannerDismissed = true,
+                                  ),
+                                  icon: const Icon(Icons.close, size: 18),
                                 ),
                               ],
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ],
-                ),
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(32),
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      'Curated picks for your glow routine',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    SliverToBoxAdapter(
+                      child: _SectionReveal(
+                        delay: 60,
+                        enabled: devSettings.homeAnimations && !reduceMotion,
+                        child: BannerSlider(images: data.bannerImages),
                       ),
                     ),
-                  ),
-                ),
-                actions: [
-                  IconButton(
-                    onPressed: () => context.go('/global-search'),
-                    icon: const Icon(Icons.manage_search),
-                  ),
-                  IconButton(
-                    onPressed: () => context.go('/notifications'),
-                    icon: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Icon(Icons.notifications_none),
-                        if (unread > 0)
-                          Positioned(
-                            right: -6,
-                            top: -6,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              constraints: const BoxConstraints(minWidth: 18),
-                              child: Text(
-                                '$unread',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          ),
-                      ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    const SliverToBoxAdapter(
+                      child: _SectionReveal(
+                        delay: 90,
+                        enabled: true,
+                        child: _HeroPromoCard(),
+                      ),
                     ),
-                  ),
-                  const CartBadgeButton(),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  collapseMode: CollapseMode.parallax,
-                  background: Container(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                    child: Align(
-                      alignment: Alignment.bottomLeft,
-                      child: Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(top: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Theme.of(context).colorScheme.surface,
-                              Theme.of(context).colorScheme.primaryContainer,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Theme.of(context).colorScheme.outline),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withAlpha(10),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.max,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(10),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Theme.of(context).colorScheme.primary.withAlpha(24),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.waving_hand_rounded,
-                                size: 18,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Halo, Gwen',
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Selamat datang di GWEN Cosmetic',
-                                  style: TextStyle(
-                                    color: Colors.black87.withAlpha(130),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    SliverToBoxAdapter(
+                      child: _SectionReveal(
+                        delay: 100,
+                        enabled: devSettings.homeAnimations && !reduceMotion,
+                        child: const _PromoGrid(),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: _SectionReveal(
+                        delay: 110,
+                        enabled: devSettings.homeAnimations && !reduceMotion,
+                        child: _DealOfTheDayCard(data: data),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    const SliverToBoxAdapter(child: _MissionCard()),
+                    if (priceDropItems.isNotEmpty) ...[
+                      const SliverToBoxAdapter(child: SizedBox(height: 10)),
+                      SliverToBoxAdapter(
+                        child: _SectionReveal(
+                          delay: 115,
+                          enabled: devSettings.homeAnimations && !reduceMotion,
+                          child: _PriceDropQuickSection(items: priceDropItems),
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _SearchBarHeaderDelegate(
-                  child: Container(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    child: const SearchBarWidget(),
-                  ),
-                ),
-              ),
-              if (!auth.isLoggedIn && !_guestBannerDismissed)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Theme.of(context).colorScheme.outline),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.lock_outline, size: 18),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Text(
-                              'Login untuk menyimpan wishlist & riwayat pesanan.',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => context.go('/login'),
-                            child: const Text('Login'),
-                          ),
-                          TextButton(
-                            onPressed: () => context.go('/register'),
-                            child: const Text('Register'),
-                          ),
-                          IconButton(
-                            onPressed: () => setState(() => _guestBannerDismissed = true),
-                            icon: const Icon(Icons.close, size: 18),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              SliverToBoxAdapter(
-                child: _SectionReveal(
-                  delay: 60,
-                  enabled: devSettings.homeAnimations && !reduceMotion,
-                  child: BannerSlider(images: data.bannerImages),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              const SliverToBoxAdapter(
-                child: _SectionReveal(
-                  delay: 90,
-                  enabled: true,
-                  child: _HeroPromoCard(),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              SliverToBoxAdapter(
-                child: _SectionReveal(
-                  delay: 100,
-                  enabled: devSettings.homeAnimations && !reduceMotion,
-                  child: const _PromoGrid(),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: _SectionReveal(
-                  delay: 110,
-                  enabled: devSettings.homeAnimations && !reduceMotion,
-                  child: _DealOfTheDayCard(data: data),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              const SliverToBoxAdapter(child: _MissionCard()),
-              if (priceDropItems.isNotEmpty) ...[
-                const SliverToBoxAdapter(child: SizedBox(height: 10)),
-                SliverToBoxAdapter(
-                  child: _SectionReveal(
-                    delay: 115,
-                    enabled: devSettings.homeAnimations && !reduceMotion,
-                    child: _PriceDropQuickSection(items: priceDropItems),
-                  ),
-                ),
-              ],
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
-              SliverToBoxAdapter(
-                child: _SectionReveal(
-                  delay: 120,
-                  enabled: devSettings.homeAnimations && !reduceMotion,
-                  child: FlashSaleSection(
-                    products: data.flashSale,
-                    onSeeAll: () => context.go('/promo'),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  child: Row(
-                    children: [
-                      TextButton(
-                        onPressed: () => _jumpToKey(_categoryKey),
-                        child: const Text('Categories'),
-                      ),
-                      TextButton(
-                        onPressed: () => _jumpToKey(_brandKey),
-                        child: const Text('Brands'),
-                      ),
-                      TextButton(
-                        onPressed: () => _jumpToKey(_exclusiveKey),
-                        child: const Text('Exclusive'),
-                      ),
                     ],
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              SliverToBoxAdapter(
-                child: _SectionReveal(
-                  delay: 150,
-                  enabled: devSettings.homeAnimations && !reduceMotion,
-                  child: _HomeSectionTabs(
-                    selected: _tab,
-                    onSelect: (t) => setState(() => _tab = t),
-                    ),
-                  ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 4)),
-              SliverToBoxAdapter(
-                child: _SectionReveal(
-                  delay: 180,
-                  enabled: devSettings.homeAnimations && !reduceMotion,
-                  child: _tab == _HomeTab.flash
-                      ? FlashSaleSection(
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                    SliverToBoxAdapter(
+                      child: _SectionReveal(
+                        delay: 120,
+                        enabled: devSettings.homeAnimations && !reduceMotion,
+                        child: FlashSaleSection(
                           products: data.flashSale,
                           onSeeAll: () => context.go('/promo'),
-                        )
-                      : _tab == _HomeTab.best
-                          ? BestSellerSection(
-                              products: data.bestSeller,
-                              onSeeAll: () => context.go('/best-seller'),
-                            )
-                          : NewArrivalsSection(
-                              products: data.newArrivals,
-                              onSeeAll: () => context.go('/new-arrivals'),
-                            ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              if (_showCategory)
-                SliverToBoxAdapter(
-                  child: _SectionReveal(
-                    delay: 240,
-                    enabled: devSettings.homeAnimations && !reduceMotion,
-                    child: KeyedSubtree(
-                      key: _categoryKey,
-                      child: CategoryGrid(categories: data.categories),
-                    ),
-                  ),
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              if (_showPersonalized)
-                SliverToBoxAdapter(
-                  child: _SectionReveal(
-                    delay: 250,
-                    enabled: devSettings.homeAnimations && !reduceMotion,
-                    child: const _MoodChips(),
-                  ),
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              if (_showPersonalized)
-                SliverToBoxAdapter(
-                  child: _SectionReveal(
-                    delay: 270,
-                    enabled: devSettings.homeAnimations && !reduceMotion,
-                    child: _PersonalizedBlocks(data: data, altLayout: devSettings.homeAltLayout),
-                  ),
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              if (_showBrand)
-                SliverToBoxAdapter(
-                  child: _SectionReveal(
-                    delay: 300,
-                    enabled: devSettings.homeAnimations && !reduceMotion,
-                    child: KeyedSubtree(
-                      key: _brandKey,
-                      child: BrandCarousel(brands: data.brands),
-                    ),
-                  ),
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              if (_showExclusive)
-                SliverToBoxAdapter(
-                  child: _SectionReveal(
-                    delay: 420,
-                    enabled: devSettings.homeAnimations && !reduceMotion,
-                    child: KeyedSubtree(
-                      key: _exclusiveKey,
-                      child: ExclusiveProductsSection(products: data.exclusive),
-                    ),
-                  ),
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _QuickFilterHeaderDelegate(
-                  selected: allFilter,
-                  onTap: (type) {
-                    ref.read(homeAllProductsFilterProvider.notifier).setFilter(type);
-                    _filterFadeController.forward(from: 0);
-                  },
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      const Text('All Products', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                      const SizedBox(width: 8),
-                      _FilterBadge(label: _filterLabel(allFilter)),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${filteredItems.length} items',
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
                       ),
-                      const Spacer(),
-                      if (allFilter != HomeAllProductsFilter.all ||
-                          allQuery.trim().isNotEmpty ||
-                          _quickFilter != _HomeQuickFilter.none)
-                        TextButton(
-                          onPressed: () {
-                            ref.read(homeAllProductsFilterProvider.notifier).reset();
-                            _allQueryController.clear();
-                            setState(() => _quickFilter = _HomeQuickFilter.none);
-                            _filterFadeController.forward(from: 0);
-                          },
-                          child: const Text('Clear'),
-                        )
-                      else
-                        const Text('Infinite', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
-                  child: Text(
-                    'Filter: ${_filterLabel(allFilter)}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                  child: _QuickMiniFilters(
-                    selected: _quickFilter,
-                    onSelect: (f) {
-                      setState(() => _quickFilter = f);
-                      _filterFadeController.forward(from: 0);
-                    },
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                  child: TextField(
-                    controller: _allQueryController,
-                    decoration: InputDecoration(
-                      hintText: 'Search in all products...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: allQuery.trim().isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.close),
-                              onPressed: () {
-                                _allQueryController.clear();
-                                ref.read(homeAllProductsFilterProvider.notifier).setQuery('');
-                                _filterFadeController.forward(from: 0);
-                              },
-                            ),
                     ),
-                    onChanged: (v) {
-                      ref.read(homeAllProductsFilterProvider.notifier).setQuery(v);
-                      _filterFadeController.forward(from: 0);
-                    },
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    child: allQuery.trim().isNotEmpty && sortedFilteredItems.isNotEmpty
-                        ? TweenAnimationBuilder<double>(
-                            tween: Tween(begin: 0.0, end: 1.0),
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOutCubic,
-                            builder: (context, value, child) => Opacity(
-                              opacity: value,
-                              child: Transform.translate(
-                                offset: Offset(0, 8 * (1 - value)),
-                                child: child,
-                              ),
-                            ),
-                            child: _SearchPeekCard(
-                              key: ValueKey(sortedFilteredItems.first.id),
-                              product: sortedFilteredItems.first,
-                              onTap: () => context.go('/product/${sortedFilteredItems.first.id}'),
-                              onSeeAll: () => _scrollController.animateTo(
-                                _scrollController.offset + 300,
-                                duration: const Duration(milliseconds: 280),
-                                curve: Curves.easeOutCubic,
-                              ),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              if (showEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Column(
-                      children: [
-                        EmptyState(
-                          icon: Icons.search_off,
-                          title: 'No products found',
-                          subtitle:
-                              'We could not find matches for ${beautyProfile.skinType.toLowerCase()} skin. Try a different filter.',
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 6,
                         ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: data.categories
-                              .take(4)
-                              .map(
-                                (c) => Chip(
-                                  label: Text(c.name),
-                                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                                ),
+                        child: Row(
+                          children: [
+                            TextButton(
+                              onPressed: () => _jumpToKey(_categoryKey),
+                              child: const Text('Categories'),
+                            ),
+                            TextButton(
+                              onPressed: () => _jumpToKey(_brandKey),
+                              child: const Text('Brands'),
+                            ),
+                            TextButton(
+                              onPressed: () => _jumpToKey(_exclusiveKey),
+                              child: const Text('Exclusive'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    SliverToBoxAdapter(
+                      child: _SectionReveal(
+                        delay: 150,
+                        enabled: devSettings.homeAnimations && !reduceMotion,
+                        child: _HomeSectionTabs(
+                          selected: _tab,
+                          onSelect: (t) => setState(() => _tab = t),
+                        ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 4)),
+                    SliverToBoxAdapter(
+                      child: _SectionReveal(
+                        delay: 180,
+                        enabled: devSettings.homeAnimations && !reduceMotion,
+                        child: _tab == _HomeTab.flash
+                            ? FlashSaleSection(
+                                products: data.flashSale,
+                                onSeeAll: () => context.go('/promo'),
                               )
-                              .toList(),
+                            : _tab == _HomeTab.best
+                            ? BestSellerSection(
+                                products: data.bestSeller,
+                                onSeeAll: () => context.go('/best-seller'),
+                              )
+                            : NewArrivalsSection(
+                                products: data.newArrivals,
+                                onSeeAll: () => context.go('/new-arrivals'),
+                              ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    if (_showCategory)
+                      SliverToBoxAdapter(
+                        child: _SectionReveal(
+                          delay: 240,
+                          enabled: devSettings.homeAnimations && !reduceMotion,
+                          child: KeyedSubtree(
+                            key: _categoryKey,
+                            child: CategoryGrid(categories: data.categories),
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        OutlinedButton(
-                          onPressed: () {
-                            ref.read(homeAllProductsFilterProvider.notifier).reset();
-                            _allQueryController.clear();
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    if (_showPersonalized)
+                      SliverToBoxAdapter(
+                        child: _SectionReveal(
+                          delay: 250,
+                          enabled: devSettings.homeAnimations && !reduceMotion,
+                          child: const _MoodChips(),
+                        ),
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    if (_showPersonalized)
+                      SliverToBoxAdapter(
+                        child: _SectionReveal(
+                          delay: 270,
+                          enabled: devSettings.homeAnimations && !reduceMotion,
+                          child: _PersonalizedBlocks(
+                            data: data,
+                            altLayout: devSettings.homeAltLayout,
+                          ),
+                        ),
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    if (_showBrand)
+                      SliverToBoxAdapter(
+                        child: _SectionReveal(
+                          delay: 300,
+                          enabled: devSettings.homeAnimations && !reduceMotion,
+                          child: KeyedSubtree(
+                            key: _brandKey,
+                            child: BrandCarousel(brands: data.brands),
+                          ),
+                        ),
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    if (_showExclusive)
+                      SliverToBoxAdapter(
+                        child: _SectionReveal(
+                          delay: 420,
+                          enabled: devSettings.homeAnimations && !reduceMotion,
+                          child: KeyedSubtree(
+                            key: _exclusiveKey,
+                            child: ExclusiveProductsSection(
+                              products: data.exclusive,
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _QuickFilterHeaderDelegate(
+                        selected: allFilter,
+                        onTap: (type) {
+                          ref
+                              .read(homeAllProductsFilterProvider.notifier)
+                              .setFilter(type);
+                          _filterFadeController.forward(from: 0);
+                        },
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'All Products',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterBadge(label: homeFilterLabel(allFilter)),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${filteredItems.length} items',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (allFilter != HomeAllProductsFilter.all ||
+                                allQuery.trim().isNotEmpty ||
+                                _quickFilter != HomeQuickFilter.none)
+                              TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(
+                                        homeAllProductsFilterProvider.notifier,
+                                      )
+                                      .reset();
+                                  _allQueryController.clear();
+                                  setState(
+                                    () => _quickFilter = HomeQuickFilter.none,
+                                  );
+                                  _filterFadeController.forward(from: 0);
+                                },
+                                child: const Text('Clear'),
+                              )
+                            else
+                              const Text(
+                                'Infinite',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+                        child: Text(
+                          'Filter: ${homeFilterLabel(allFilter)}',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                        child: _QuickMiniFilters(
+                          selected: _quickFilter,
+                          onSelect: (f) {
+                            setState(() => _quickFilter = f);
                             _filterFadeController.forward(from: 0);
                           },
-                          child: const Text('Reset filter'),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                )
-              else
-                SliverFadeTransition(
-                  opacity: _filterFade,
-                  sliver: SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: _InfiniteProductsGrid(
-                      filter: allFilter,
-                      items: sortedFilteredItems,
-                      isLoading: infiniteState.isLoading,
-                      lastBatchIds: infiniteState.lastBatchIds,
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                        child: TextField(
+                          controller: _allQueryController,
+                          decoration: InputDecoration(
+                            hintText: 'Search in all products...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: allQuery.trim().isEmpty
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(Icons.close),
+                                    onPressed: () {
+                                      _allQueryController.clear();
+                                      ref
+                                          .read(
+                                            homeAllProductsFilterProvider
+                                                .notifier,
+                                          )
+                                          .setQuery('');
+                                      _filterFadeController.forward(from: 0);
+                                    },
+                                  ),
+                          ),
+                          onChanged: (v) {
+                            ref
+                                .read(homeAllProductsFilterProvider.notifier)
+                                .setQuery(v);
+                            _filterFadeController.forward(from: 0);
+                          },
+                        ),
+                      ),
                     ),
-                  ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          child:
+                              allQuery.trim().isNotEmpty &&
+                                  sortedFilteredItems.isNotEmpty
+                              ? TweenAnimationBuilder<double>(
+                                  tween: Tween(begin: 0.0, end: 1.0),
+                                  duration: const Duration(milliseconds: 220),
+                                  curve: Curves.easeOutCubic,
+                                  builder: (context, value, child) => Opacity(
+                                    opacity: value,
+                                    child: Transform.translate(
+                                      offset: Offset(0, 8 * (1 - value)),
+                                      child: child,
+                                    ),
+                                  ),
+                                  child: _SearchPeekCard(
+                                    key: ValueKey(sortedFilteredItems.first.id),
+                                    product: sortedFilteredItems.first,
+                                    onTap: () => context.go(
+                                      '/product/${sortedFilteredItems.first.id}',
+                                    ),
+                                    onSeeAll: () => _scrollController.animateTo(
+                                      _scrollController.offset + 300,
+                                      duration: const Duration(
+                                        milliseconds: 280,
+                                      ),
+                                      curve: Curves.easeOutCubic,
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    if (showEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Column(
+                            children: [
+                              EmptyState(
+                                icon: Icons.search_off,
+                                title: 'No products found',
+                                subtitle:
+                                    'We could not find matches for ${beautyProfile.skinType.toLowerCase()} skin. Try a different filter.',
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: data.categories
+                                    .take(4)
+                                    .map(
+                                      (c) => Chip(
+                                        label: Text(c.name),
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.primaryContainer,
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                              const SizedBox(height: 8),
+                              OutlinedButton(
+                                onPressed: () {
+                                  ref
+                                      .read(
+                                        homeAllProductsFilterProvider.notifier,
+                                      )
+                                      .reset();
+                                  _allQueryController.clear();
+                                  _filterFadeController.forward(from: 0);
+                                },
+                                child: const Text('Reset filter'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      SliverFadeTransition(
+                        opacity: _filterFade,
+                        sliver: SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: _InfiniteProductsGrid(
+                            filter: allFilter,
+                            items: sortedFilteredItems,
+                            isLoading: infiniteState.isLoading,
+                            lastBatchIds: infiniteState.lastBatchIds,
+                          ),
+                        ),
+                      ),
+                    if (infiniteState.isLoading)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 8, bottom: 12),
+                          child: _LoadingMoreRow(),
+                        ),
+                      ),
+                    if (!infiniteState.isLoading && !infiniteState.hasMore)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 8, bottom: 12),
+                          child: _EndOfListRow(),
+                        ),
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  ],
                 ),
-              if (infiniteState.isLoading)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 8, bottom: 12),
-                    child: _LoadingMoreRow(),
-                  ),
-                ),
-              if (!infiniteState.isLoading && !infiniteState.hasMore)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 8, bottom: 12),
-                    child: _EndOfListRow(),
-                  ),
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            ],
-          ),
-        ),
+              ),
               Positioned(
                 left: 16,
                 right: 16,
@@ -829,7 +954,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                             count: compareItems.length,
                             enabled: compareItems.length >= 2,
                             onTap: () => context.go('/compare'),
-                            onClear: () => ref.read(productCompareProvider.notifier).clear(),
+                            onClear: () => ref
+                                .read(productCompareProvider.notifier)
+                                .clear(),
                           ),
                         )
                       : const SizedBox.shrink(),
@@ -837,8 +964,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
               ),
             ],
           );
-      },
-    ),
+        },
+      ),
       floatingActionButton: _showBackToTop
           ? Padding(
               padding: const EdgeInsets.only(bottom: 68),
@@ -877,7 +1004,11 @@ class _QuickFilterHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 72;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     final blur = overlapsContent ? 10.0 : 0.0;
     final background = Theme.of(context).scaffoldBackgroundColor;
     return ClipRect(
@@ -889,7 +1020,13 @@ class _QuickFilterHeaderDelegate extends SliverPersistentHeaderDelegate {
           decoration: BoxDecoration(
             color: overlapsContent ? background.withAlpha(235) : background,
             boxShadow: overlapsContent
-                ? [BoxShadow(color: Colors.black.withAlpha(12), blurRadius: 12, offset: const Offset(0, 6))]
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(12),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
                 : null,
           ),
           child: SizedBox(
@@ -922,14 +1059,15 @@ class _SearchBarHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 72;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       elevation: overlapsContent ? 1 : 0,
-      child: SizedBox(
-        height: 72,
-        child: child,
-      ),
+      child: SizedBox(height: 72, child: child),
     );
   }
 
@@ -939,11 +1077,9 @@ class _SearchBarHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-enum _HomeQuickFilter { none, priceLow, topRated, sensitive }
-
 class _QuickMiniFilters extends StatelessWidget {
-  final _HomeQuickFilter selected;
-  final ValueChanged<_HomeQuickFilter> onSelect;
+  final HomeQuickFilter selected;
+  final ValueChanged<HomeQuickFilter> onSelect;
 
   const _QuickMiniFilters({required this.selected, required this.onSelect});
 
@@ -955,23 +1091,23 @@ class _QuickMiniFilters extends StatelessWidget {
       children: [
         _QuickMiniChip(
           label: 'All',
-          selected: selected == _HomeQuickFilter.none,
-          onTap: () => onSelect(_HomeQuickFilter.none),
+          selected: selected == HomeQuickFilter.none,
+          onTap: () => onSelect(HomeQuickFilter.none),
         ),
         _QuickMiniChip(
           label: 'Price low',
-          selected: selected == _HomeQuickFilter.priceLow,
-          onTap: () => onSelect(_HomeQuickFilter.priceLow),
+          selected: selected == HomeQuickFilter.priceLow,
+          onTap: () => onSelect(HomeQuickFilter.priceLow),
         ),
         _QuickMiniChip(
           label: 'Top rated',
-          selected: selected == _HomeQuickFilter.topRated,
-          onTap: () => onSelect(_HomeQuickFilter.topRated),
+          selected: selected == HomeQuickFilter.topRated,
+          onTap: () => onSelect(HomeQuickFilter.topRated),
         ),
         _QuickMiniChip(
           label: 'Sensitive-safe',
-          selected: selected == _HomeQuickFilter.sensitive,
-          onTap: () => onSelect(_HomeQuickFilter.sensitive),
+          selected: selected == HomeQuickFilter.sensitive,
+          onTap: () => onSelect(HomeQuickFilter.sensitive),
         ),
       ],
     );
@@ -993,7 +1129,9 @@ List<_PriceDropItem> _buildPriceDropItems(
   for (final product in wishlist) {
     final history = priceHistory[product.id];
     if (history == null || history.length < 2) continue;
-    final drop = (history.first - history.last).clamp(0, double.infinity).toDouble();
+    final drop = (history.first - history.last)
+        .clamp(0, double.infinity)
+        .toDouble();
     if (drop <= 0) continue;
     items.add(_PriceDropItem(product: product, drop: drop));
   }
@@ -1006,7 +1144,11 @@ class _QuickMiniChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _QuickMiniChip({required this.label, required this.selected, required this.onTap});
+  const _QuickMiniChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1036,7 +1178,9 @@ class _QuickMiniChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: selected ? Theme.of(context).colorScheme.primary : Colors.black87,
+                color: selected
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.black87,
               ),
             ),
           ),
@@ -1075,13 +1219,13 @@ class _CompareBar extends StatelessWidget {
             Expanded(
               child: Text(
                 '$count selected for compare',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            TextButton(
-              onPressed: onClear,
-              child: const Text('Clear'),
-            ),
+            TextButton(onPressed: onClear, child: const Text('Clear')),
             ElevatedButton(
               onPressed: enabled ? onTap : null,
               child: const Text('Compare'),
@@ -1132,7 +1276,10 @@ class _SearchPeekCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Top match', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    const Text(
+                      'Top match',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       product.name,
@@ -1176,7 +1323,10 @@ class _MissionCard extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(Icons.emoji_events_outlined, color: Theme.of(context).colorScheme.primary),
+              child: Icon(
+                Icons.emoji_events_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
             const SizedBox(width: 12),
             const Expanded(
@@ -1212,41 +1362,42 @@ class _InfiniteProductsGrid extends ConsumerWidget {
     final compareItems = ref.watch(productCompareProvider);
     final beautyProfile = ref.watch(beautyProfileProvider);
     return SliverGrid(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          if (index >= items.length) {
-            return AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              child: const _ProductSkeletonCard(key: ValueKey('skeleton')),
-            );
-          }
-          final product = items[index];
-          final shouldStagger = lastBatchIds.contains(product.id);
-          final isCompared = compareItems.any((e) => e.id == product.id);
-          final matchScore = _calcMatchScore(product, beautyProfile.skinType);
-          final card = AnimatedSwitcher(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        if (index >= items.length) {
+          return AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
             switchInCurve: Curves.easeOutCubic,
             switchOutCurve: Curves.easeInCubic,
-            child: ProductCard(
-              key: ValueKey('${filter.name}_${product.id}'),
-              product: product,
-              onTap: () => context.go('/product/${product.id}'),
-              onAdd: () => ref.read(cartProvider.notifier).add(product),
-              onCompare: () => ref.read(productCompareProvider.notifier).toggle(product),
-              isCompared: isCompared,
-              matchScore: matchScore,
-            ),
+            child: const _ProductSkeletonCard(key: ValueKey('skeleton')),
           );
-          if (shouldStagger) {
-            return _StaggeredFadeIn(index: index, child: card);
-          }
-          return card;
-        },
-        childCount: items.length + loadingCount,
-      ),
+        }
+        final product = items[index];
+        final shouldStagger = lastBatchIds.contains(product.id);
+        final isCompared = compareItems.any((e) => e.id == product.id);
+        final matchScore = calcProductMatchScore(
+          product,
+          beautyProfile.skinType,
+        );
+        final card = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: ProductCard(
+            key: ValueKey('${filter.name}_${product.id}'),
+            product: product,
+            onTap: () => context.go('/product/${product.id}'),
+            onAdd: () => ref.read(cartProvider.notifier).add(product),
+            onCompare: () =>
+                ref.read(productCompareProvider.notifier).toggle(product),
+            isCompared: isCompared,
+            matchScore: matchScore,
+          ),
+        );
+        if (shouldStagger) {
+          return _StaggeredFadeIn(index: index, child: card);
+        }
+        return card;
+      }, childCount: items.length + loadingCount),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 12,
@@ -1262,7 +1413,11 @@ class _SectionReveal extends StatefulWidget {
   final int delay;
   final bool enabled;
 
-  const _SectionReveal({required this.child, this.delay = 0, this.enabled = true});
+  const _SectionReveal({
+    required this.child,
+    this.delay = 0,
+    this.enabled = true,
+  });
 
   @override
   State<_SectionReveal> createState() => _SectionRevealState();
@@ -1350,7 +1505,11 @@ class _QuickFilterBar extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 12, offset: const Offset(0, 6)),
+          BoxShadow(
+            color: Colors.black.withAlpha(15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
       child: Row(
@@ -1409,13 +1568,19 @@ class _QuickFilterChip extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 18, color: selected ? Theme.of(context).colorScheme.primary : null),
+              Icon(
+                icon,
+                size: 18,
+                color: selected ? Theme.of(context).colorScheme.primary : null,
+              ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  color: selected ? Theme.of(context).colorScheme.primary : null,
+                  color: selected
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
                 ),
               ),
             ],
@@ -1424,78 +1589,6 @@ class _QuickFilterChip extends StatelessWidget {
       ),
     );
   }
-}
-
-List<Product> _applyFilter(
-  List<Product> items,
-  HomeAllProductsFilter filter,
-  String query,
-  _HomeQuickFilter quickFilter,
-) {
-  var filtered = items;
-  final q = query.trim().toLowerCase();
-  if (q.isNotEmpty) {
-    filtered = filtered.where((p) => p.name.toLowerCase().contains(q)).toList();
-  }
-  if (filter == HomeAllProductsFilter.all) return filtered;
-  if (filter == HomeAllProductsFilter.promo) {
-    return filtered.where((p) => ((p.price - p.discountPrice) / p.price) >= 0.15).toList();
-  }
-  if (filter == HomeAllProductsFilter.best) {
-    filtered = filtered.where((p) => p.rating >= 4.6).toList();
-  } else if (filter == HomeAllProductsFilter.newest) {
-    filtered = filtered.where((p) => (p.id >= 300 && p.id < 400) || p.id % 5 == 0).toList();
-  }
-
-  switch (quickFilter) {
-    case _HomeQuickFilter.none:
-      return filtered;
-    case _HomeQuickFilter.priceLow:
-      final list = [...filtered];
-      list.sort((a, b) => a.discountPrice.compareTo(b.discountPrice));
-      return list;
-    case _HomeQuickFilter.topRated:
-      return filtered.where((p) => p.rating >= 4.7).toList();
-    case _HomeQuickFilter.sensitive:
-      return filtered.where((p) => p.id % 2 == 0).toList();
-  }
-}
-
-String _filterLabel(HomeAllProductsFilter filter) {
-  switch (filter) {
-    case HomeAllProductsFilter.all:
-      return 'All products';
-    case HomeAllProductsFilter.promo:
-      return 'Promo deals';
-    case HomeAllProductsFilter.best:
-      return 'Best rated';
-    case HomeAllProductsFilter.newest:
-      return 'New arrivals';
-  }
-}
-
-int _calcMatchScore(Product product, String skinType) {
-  var score = (product.rating * 18).round(); // up to ~90
-  score += (product.reviewCount ~/ 40).clamp(0, 8);
-  final discountPct = ((product.price - product.discountPrice) / product.price).clamp(0.0, 0.6);
-  score += (discountPct * 12).round();
-  if (product.stock <= 3) score -= 2;
-  if (skinType.toLowerCase() == 'sensitive') {
-    score += product.id.isEven ? 4 : 0;
-  } else if (skinType.toLowerCase() == 'oily') {
-    score += product.id % 3 == 0 ? 3 : 0;
-  } else if (skinType.toLowerCase() == 'dry') {
-    score += product.id % 5 == 0 ? 3 : 0;
-  }
-  if (score > 98) score = 98;
-  if (score < 70) score = 70;
-  return score;
-}
-
-List<Product> _sortByStock(List<Product> items) {
-  final inStock = items.where((p) => p.stock > 0).toList();
-  final outOfStock = items.where((p) => p.stock <= 0).toList();
-  return [...inStock, ...outOfStock];
 }
 
 class _ProductSkeletonCard extends StatelessWidget {
@@ -1511,7 +1604,10 @@ class _ProductSkeletonCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
             Expanded(
-              child: ShimmerLoader(height: double.infinity, width: double.infinity),
+              child: ShimmerLoader(
+                height: double.infinity,
+                width: double.infinity,
+              ),
             ),
             SizedBox(height: 10),
             ShimmerLoader(height: 12, width: 120),
@@ -1623,7 +1719,10 @@ class _EndOfListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Text('You have reached the end', style: TextStyle(color: Colors.grey)),
+      child: Text(
+        'You have reached the end',
+        style: TextStyle(color: Colors.grey),
+      ),
     );
   }
 }
@@ -1672,7 +1771,11 @@ class _PromoGrid extends StatelessWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withAlpha(12), blurRadius: 8, offset: const Offset(0, 4)),
+                    BoxShadow(
+                      color: Colors.black.withAlpha(12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
                 child: Row(
@@ -1696,9 +1799,18 @@ class _PromoGrid extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(item.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          Text(
+                            item.$1,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                           const SizedBox(height: 2),
-                          Text(item.$2, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text(
+                            item.$2,
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1729,8 +1841,10 @@ class _PriceDropQuickSectionState extends State<_PriceDropQuickSection>
   @override
   void initState() {
     super.initState();
-    _sparkle = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))
-      ..repeat(reverse: true);
+    _sparkle = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -1751,15 +1865,27 @@ class _PriceDropQuickSectionState extends State<_PriceDropQuickSection>
             children: [
               Row(
                 children: [
-                  const Text('Price drops for you', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                  const Text(
+                    'Price drops for you',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: scheme.primaryContainer,
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: const Text('Wishlist', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
+                    child: const Text(
+                      'Wishlist',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                   const Spacer(),
                   TextButton(
@@ -1785,7 +1911,9 @@ class _PriceDropQuickSectionState extends State<_PriceDropQuickSection>
                         decoration: BoxDecoration(
                           color: scheme.surface,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.4)),
+                          border: Border.all(
+                            color: scheme.outlineVariant.withValues(alpha: 0.4),
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: scheme.shadow.withValues(alpha: 0.05),
@@ -1814,12 +1942,18 @@ class _PriceDropQuickSectionState extends State<_PriceDropQuickSection>
                                     item.product.name,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                   const Spacer(),
                                   Row(
                                     children: [
-                                      const Icon(Icons.trending_down, size: 14, color: Colors.green),
+                                      const Icon(
+                                        Icons.trending_down,
+                                        size: 14,
+                                        color: Colors.green,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         'Drop ${Formatter.currency(item.drop)}',
@@ -1832,7 +1966,9 @@ class _PriceDropQuickSectionState extends State<_PriceDropQuickSection>
                                     ],
                                   ),
                                   const SizedBox(height: 4),
-                                  PriceWidget(price: item.product.discountPrice),
+                                  PriceWidget(
+                                    price: item.product.discountPrice,
+                                  ),
                                 ],
                               ),
                             ),
@@ -1891,6 +2027,40 @@ class _PriceDropQuickSectionState extends State<_PriceDropQuickSection>
               },
             ),
           ),
+          Positioned(
+            right: 6,
+            top: 76,
+            child: AnimatedBuilder(
+              animation: _sparkle,
+              builder: (context, _) {
+                final t = _sparkle.value;
+                final opacity = 0.3 + (t * 0.4);
+                return Opacity(
+                  opacity: opacity,
+                  child: Container(
+                    width: 24,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          scheme.surface.withValues(alpha: 0.0),
+                          scheme.surface.withValues(alpha: 0.6),
+                        ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: Colors.black54,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -1904,7 +2074,9 @@ class _DealOfTheDayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final product = data.flashSale.isNotEmpty ? data.flashSale.first : data.bestSeller.first;
+    final product = data.flashSale.isNotEmpty
+        ? data.flashSale.first
+        : data.bestSeller.first;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Card(
@@ -1914,16 +2086,28 @@ class _DealOfTheDayCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(product.image, width: 72, height: 72, fit: BoxFit.cover),
+                child: Image.network(
+                  product.image,
+                  width: 72,
+                  height: 72,
+                  fit: BoxFit.cover,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Deal of the day', style: TextStyle(color: Colors.grey)),
+                    const Text(
+                      'Deal of the day',
+                      style: TextStyle(color: Colors.grey),
+                    ),
                     const SizedBox(height: 4),
-                    Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 4),
                     PriceWidget(price: product.discountPrice),
                   ],
@@ -1992,9 +2176,15 @@ class _HeroPromoCardState extends State<_HeroPromoCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Weekend Glow Sale', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                const Text(
+                  'Weekend Glow Sale',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
                 const SizedBox(height: 4),
-                Text('Ends in $_timeText', style: const TextStyle(color: Colors.black54)),
+                Text(
+                  'Ends in $_timeText',
+                  style: const TextStyle(color: Colors.black54),
+                ),
                 const SizedBox(height: 8),
                 const Text('Up to 40% off bestsellers'),
               ],
@@ -2027,7 +2217,9 @@ class _MoodChips extends ConsumerWidget {
                 label: Text(moodLabel(mood)),
                 selected: selected == mood,
                 labelStyle: TextStyle(
-                  fontWeight: selected == mood ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: selected == mood
+                      ? FontWeight.w700
+                      : FontWeight.w500,
                 ),
                 selectedColor: Theme.of(context).colorScheme.primaryContainer,
                 side: BorderSide(color: Theme.of(context).colorScheme.outline),
@@ -2052,7 +2244,11 @@ class _PersonalizedBlocks extends ConsumerWidget {
 
   const _PersonalizedBlocks({required this.data, required this.altLayout});
 
-  List<Product> _pickForProfile(List<Product> all, String skinType, Set<String> concerns) {
+  List<Product> _pickForProfile(
+    List<Product> all,
+    String skinType,
+    Set<String> concerns,
+  ) {
     final normalized = skinType.toLowerCase();
     final seed = normalized.hashCode.abs() % 5;
     var result = all.where((p) => p.id % 5 == seed).toList();
@@ -2061,7 +2257,9 @@ class _PersonalizedBlocks extends ConsumerWidget {
     }
     if (concerns.isNotEmpty) {
       final keyword = concerns.first.toLowerCase();
-      final matches = all.where((p) => p.name.toLowerCase().contains(keyword)).toList();
+      final matches = all
+          .where((p) => p.name.toLowerCase().contains(keyword))
+          .toList();
       if (matches.isNotEmpty) {
         result = matches;
       }
@@ -2074,13 +2272,19 @@ class _PersonalizedBlocks extends ConsumerWidget {
     final recent = ref.watch(recentViewedProvider);
     final beautyProfile = ref.watch(beautyProfileProvider);
     final forYou = data.bestSeller.take(6).toList();
-    final likedCategoryId = recent.isNotEmpty ? recent.first.categoryId : data.categories.first.id;
+    final likedCategoryId = recent.isNotEmpty
+        ? recent.first.categoryId
+        : data.categories.first.id;
     final becauseLiked = data.allProducts
         .where((p) => p.categoryId == likedCategoryId)
         .where((p) => recent.isEmpty || p.id != recent.first.id)
         .take(6)
         .toList();
-    final personalized = _pickForProfile(data.allProducts, beautyProfile.skinType, beautyProfile.concerns);
+    final personalized = _pickForProfile(
+      data.allProducts,
+      beautyProfile.skinType,
+      beautyProfile.concerns,
+    );
 
     if (altLayout) {
       return Column(
@@ -2098,7 +2302,8 @@ class _PersonalizedBlocks extends ConsumerWidget {
               products: recent,
             ),
           _AltSectionCard(
-            title: 'Because you liked ${data.categories.firstWhere((c) => c.id == likedCategoryId).name}',
+            title:
+                'Because you liked ${data.categories.firstWhere((c) => c.id == likedCategoryId).name}',
             subtitle: 'Similar picks you may love',
             products: becauseLiked,
           ),
@@ -2114,7 +2319,10 @@ class _PersonalizedBlocks extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Text('Picks for ${beautyProfile.skinType}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  'Picks for ${beautyProfile.skinType}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(width: 8),
                 if (beautyProfile.concerns.isNotEmpty)
                   Text(
@@ -2131,7 +2339,10 @@ class _PersonalizedBlocks extends ConsumerWidget {
         if (forYou.isNotEmpty) ...[
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text('For You', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(
+              'For You',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
           const SizedBox(height: 8),
           _HorizontalProductList(products: forYou),
@@ -2142,10 +2353,14 @@ class _PersonalizedBlocks extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                const Text('Recently Viewed', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Recently Viewed',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const Spacer(),
                 TextButton(
-                  onPressed: () => ref.read(recentViewedProvider.notifier).clear(),
+                  onPressed: () =>
+                      ref.read(recentViewedProvider.notifier).clear(),
                   child: const Text('Clear'),
                 ),
               ],
@@ -2157,7 +2372,9 @@ class _PersonalizedBlocks extends ConsumerWidget {
         if (becauseLiked.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Because you liked ${data.categories.firstWhere((c) => c.id == likedCategoryId).name}'),
+            child: Text(
+              'Because you liked ${data.categories.firstWhere((c) => c.id == likedCategoryId).name}',
+            ),
           ),
           const SizedBox(height: 8),
           _HorizontalProductList(products: becauseLiked),
@@ -2219,7 +2436,10 @@ class _AltSectionCard extends StatelessWidget {
           children: [
             Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
-            Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(
+              subtitle,
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
             const SizedBox(height: 8),
             SizedBox(
               height: 200,

@@ -1,1 +1,7 @@
-﻿abstract class AuthRepository {}
+abstract class AuthRepository {
+  Future<bool> isLoggedIn();
+
+  Future<void> setLoggedIn(bool value);
+
+  Future<void> clearSessionScopedState();
+}

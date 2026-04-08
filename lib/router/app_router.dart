@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -63,6 +63,7 @@ import '../features/analytics/presentation/analytics_log_provider.dart';
 import '../features/analytics/presentation/analytics_log_screen.dart';
 import '../features/cart/presentation/cart_providers.dart';
 import '../core/network/connectivity_provider.dart';
+import 'route_guard.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 bool routerJustLoggedIn = false;
@@ -73,35 +74,20 @@ class AppRouter {
     initialLocation: '/splash',
     refreshListenable: routerAuthRefresh,
     redirect: (context, state) {
-      final authState = routerAuthState;
-      final isLoading = authState?.isLoading ?? true;
-      final isLoggedIn = authState?.isLoggedIn ?? false;
-      final isAuthRoute = state.uri.path.startsWith('/login') ||
-          state.uri.path.startsWith('/register') ||
-          state.uri.path.startsWith('/forgot-password') ||
-          state.uri.path.startsWith('/login-otp') ||
-          state.uri.path.startsWith('/otp') ||
-          state.uri.path.startsWith('/complete-profile') ||
-          state.uri.path.startsWith('/onboarding') ||
-          state.uri.path.startsWith('/splash');
-      if (isLoading) {
-        return state.uri.path == '/splash' ? null : '/splash';
-      }
-      if (isLoggedIn && routerJustLoggedIn) {
+      final redirectPath = resolveRedirect(
+        authState: routerAuthState,
+        path: state.uri.path,
+        justLoggedIn: routerJustLoggedIn,
+      );
+      if (redirectPath != null &&
+          routerJustLoggedIn &&
+          redirectPath == '/shop') {
         routerJustLoggedIn = false;
-        if (state.uri.path != '/shop') return '/shop';
       }
-      if (!isLoggedIn && !isAuthRoute) return '/login';
-      if (isLoggedIn && (state.uri.path == '/login' || state.uri.path == '/onboarding')) {
-        return '/shop';
-      }
-      return null;
+      return redirectPath;
     },
     routes: [
-      GoRoute(
-        path: '/',
-        redirect: (context, state) => '/shop',
-      ),
+      GoRoute(path: '/', redirect: (context, state) => '/shop'),
       GoRoute(
         path: '/splash',
         builder: (context, state) => const SplashScreen(),
@@ -110,45 +96,39 @@ class AppRouter {
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
       ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/login-otp',
         builder: (context, state) => const LoginOtpScreen(),
       ),
       GoRoute(
         path: '/login-otp/verify',
-        builder: (context, state) =>
-            LoginOtpVerifyScreen(
-              args: state.extra is OtpVerifyArgs
-                  ? state.extra as OtpVerifyArgs
-                  : OtpVerifyArgs(
-                      phone: state.extra is String ? state.extra as String : '',
-                      method: 'WhatsApp',
-                    ),
-            ),
-      ),
-        GoRoute(
-          path: '/register',
-          builder: (context, state) => const RegisterScreen(),
+        builder: (context, state) => LoginOtpVerifyScreen(
+          args: state.extra is OtpVerifyArgs
+              ? state.extra as OtpVerifyArgs
+              : OtpVerifyArgs(
+                  phone: state.extra is String ? state.extra as String : '',
+                  method: 'WhatsApp',
+                ),
         ),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
       GoRoute(
         path: '/forgot-password',
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
-      GoRoute(
-        path: '/otp',
-        builder: (context, state) => const OtpScreen(),
-      ),
+      GoRoute(path: '/otp', builder: (context, state) => const OtpScreen()),
       GoRoute(
         path: '/complete-profile',
         builder: (context, state) => const CompleteProfileScreen(),
       ),
       GoRoute(
         path: '/product/:id',
-        builder: (_, state) => ProductDetailScreen(id: state.pathParameters['id'] ?? ''),
+        builder: (_, state) =>
+            ProductDetailScreen(id: state.pathParameters['id'] ?? ''),
       ),
       GoRoute(
         path: '/products',
@@ -175,19 +155,23 @@ class AppRouter {
       ),
       GoRoute(
         path: '/promo',
-        builder: (context, state) => const SectionListScreen(type: SectionType.promo),
+        builder: (context, state) =>
+            const SectionListScreen(type: SectionType.promo),
       ),
       GoRoute(
         path: '/section/mood/:mood',
-        builder: (context, state) => MoodSectionScreen(mood: state.pathParameters['mood'] ?? ''),
+        builder: (context, state) =>
+            MoodSectionScreen(mood: state.pathParameters['mood'] ?? ''),
       ),
       GoRoute(
         path: '/best-seller',
-        builder: (context, state) => const SectionListScreen(type: SectionType.bestSeller),
+        builder: (context, state) =>
+            const SectionListScreen(type: SectionType.bestSeller),
       ),
       GoRoute(
         path: '/new-arrivals',
-        builder: (context, state) => const SectionListScreen(type: SectionType.newArrivals),
+        builder: (context, state) =>
+            const SectionListScreen(type: SectionType.newArrivals),
       ),
       GoRoute(
         path: '/review/create',
@@ -199,12 +183,11 @@ class AppRouter {
       ),
       GoRoute(
         path: '/review/:id',
-        builder: (_, state) => ReviewDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0),
+        builder: (_, state) => ReviewDetailScreen(
+          id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+        ),
       ),
-      GoRoute(
-        path: '/cart',
-        builder: (context, state) => const CartScreen(),
-      ),
+      GoRoute(path: '/cart', builder: (context, state) => const CartScreen()),
       GoRoute(
         path: '/checkout',
         builder: (context, state) => const CheckoutScreen(),
@@ -215,8 +198,11 @@ class AppRouter {
       ),
       GoRoute(
         path: '/order-success',
-        builder: (context, state) =>
-            OrderSuccessScreen(args: state.extra is OrderSuccessArgs ? state.extra as OrderSuccessArgs : null),
+        builder: (context, state) => OrderSuccessScreen(
+          args: state.extra is OrderSuccessArgs
+              ? state.extra as OrderSuccessArgs
+              : null,
+        ),
       ),
       GoRoute(
         path: '/wishlist',
@@ -228,7 +214,8 @@ class AppRouter {
       ),
       GoRoute(
         path: '/article/:id',
-        builder: (_, state) => ArticleDetailScreen(id: state.pathParameters['id'] ?? ''),
+        builder: (_, state) =>
+            ArticleDetailScreen(id: state.pathParameters['id'] ?? ''),
       ),
       GoRoute(
         path: '/newsfeed/saved',
@@ -240,8 +227,9 @@ class AppRouter {
       ),
       GoRoute(
         path: '/newsfeed/author/:name',
-        builder: (context, state) =>
-            NewsfeedAuthorProfileScreen(author: state.pathParameters['name'] ?? ''),
+        builder: (context, state) => NewsfeedAuthorProfileScreen(
+          author: state.pathParameters['name'] ?? '',
+        ),
       ),
       GoRoute(
         path: '/notifications',
@@ -249,7 +237,8 @@ class AppRouter {
       ),
       GoRoute(
         path: '/notifications/:id',
-        builder: (_, state) => NotificationDetailScreen(id: state.pathParameters['id'] ?? ''),
+        builder: (_, state) =>
+            NotificationDetailScreen(id: state.pathParameters['id'] ?? ''),
       ),
       GoRoute(
         path: '/notifications/settings',
@@ -257,7 +246,9 @@ class AppRouter {
       ),
       GoRoute(
         path: '/wishlist/collection/:name',
-        builder: (_, state) => WishlistCollectionDetailScreen(name: state.pathParameters['name'] ?? ''),
+        builder: (_, state) => WishlistCollectionDetailScreen(
+          name: state.pathParameters['name'] ?? '',
+        ),
       ),
       GoRoute(
         path: '/stores',
@@ -265,7 +256,8 @@ class AppRouter {
       ),
       GoRoute(
         path: '/stores/:id',
-        builder: (_, state) => StoreDetailScreen(id: state.pathParameters['id'] ?? ''),
+        builder: (_, state) =>
+            StoreDetailScreen(id: state.pathParameters['id'] ?? ''),
       ),
       GoRoute(
         path: '/coupons',
@@ -309,19 +301,19 @@ class AppRouter {
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
-          routes: [
-            GoRoute(
-              path: '/shop',
-              builder: (context, state) => const HomeScreen(),
-            ),
-            GoRoute(
-              path: '/shorts',
-              builder: (context, state) => const BeautyShortsScreen(),
-            ),
-            GoRoute(
-              path: '/review',
-              builder: (context, state) => const ReviewListScreen(),
-            ),
+        routes: [
+          GoRoute(
+            path: '/shop',
+            builder: (context, state) => const HomeScreen(),
+          ),
+          GoRoute(
+            path: '/shorts',
+            builder: (context, state) => const BeautyShortsScreen(),
+          ),
+          GoRoute(
+            path: '/review',
+            builder: (context, state) => const ReviewListScreen(),
+          ),
           GoRoute(
             path: '/scan',
             builder: (context, state) => const BarcodeScannerScreen(),
@@ -411,13 +403,17 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
     final location = GoRouterState.of(context).uri.toString();
     final currentIndex = _indexFromLocation(location);
-    final count = ref.watch(cartProvider).fold<int>(0, (sum, item) => sum + item.quantity);
-    final online = ref.watch(connectivityProvider).maybeWhen(data: (v) => v, orElse: () => true);
+    final count = ref
+        .watch(cartProvider)
+        .fold<int>(0, (sum, item) => sum + item.quantity);
+    final online = ref
+        .watch(connectivityProvider)
+        .maybeWhen(data: (v) => v, orElse: () => true);
 
-      final hideNav = location.startsWith('/shorts') && !_showTutorial;
-      return Scaffold(
-        body: Stack(
-          children: [
+    final hideNav = location.startsWith('/shorts') && !_showTutorial;
+    return Scaffold(
+      body: Stack(
+        children: [
           PopScope(
             canPop: currentIndex == 0,
             onPopInvokedWithResult: (didPop, _) {
@@ -428,7 +424,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                 return;
               }
               final now = DateTime.now();
-              if (_lastBackAt == null || now.difference(_lastBackAt!) > const Duration(seconds: 2)) {
+              if (_lastBackAt == null ||
+                  now.difference(_lastBackAt!) > const Duration(seconds: 2)) {
                 _lastBackAt = now;
                 ScaffoldMessenger.of(context)
                   ..clearSnackBars()
@@ -447,7 +444,10 @@ class _AppShellState extends ConsumerState<AppShell> {
             SafeArea(
               child: Container(
                 margin: const EdgeInsets.all(12),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.redAccent.withAlpha(220),
                   borderRadius: BorderRadius.circular(12),
@@ -457,41 +457,48 @@ class _AppShellState extends ConsumerState<AppShell> {
                   children: [
                     Icon(Icons.wifi_off, color: Colors.white, size: 16),
                     SizedBox(width: 8),
-                    Text('You are offline', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    Text(
+                      'You are offline',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
-            if (_showTutorial)
-              _BottomNavTutorialOverlay(
-                target: _targetRect(_tutorialIndex),
-                step: _tutorialSteps[_tutorialIndex],
-                total: _tutorialSteps.length,
-                index: _tutorialIndex,
-                fullScreenStyle: location.startsWith('/shorts') && _tutorialIndex == 2,
-                onSkip: _finishTutorial,
-                onNext: () {
-                  if (_tutorialIndex >= _tutorialSteps.length - 1) {
-                    _finishTutorial();
-                  } else {
+          if (_showTutorial)
+            _BottomNavTutorialOverlay(
+              target: _targetRect(_tutorialIndex),
+              step: _tutorialSteps[_tutorialIndex],
+              total: _tutorialSteps.length,
+              index: _tutorialIndex,
+              fullScreenStyle:
+                  location.startsWith('/shorts') && _tutorialIndex == 2,
+              onSkip: _finishTutorial,
+              onNext: () {
+                if (_tutorialIndex >= _tutorialSteps.length - 1) {
+                  _finishTutorial();
+                } else {
                   setState(() => _tutorialIndex += 1);
                   _onTap(context, _tutorialIndex);
                 }
               },
             ),
         ],
-        ),
-        floatingActionButton: null,
-        bottomNavigationBar: hideNav
-            ? null
-            : _FloatingNavBar(
-                currentIndex: currentIndex,
-                count: count,
-                onTap: (i) => _onTap(context, i),
-                iconKeys: _navKeys,
-              ),
-      );
-    }
+      ),
+      floatingActionButton: null,
+      bottomNavigationBar: hideNav
+          ? null
+          : _FloatingNavBar(
+              currentIndex: currentIndex,
+              count: count,
+              onTap: (i) => _onTap(context, i),
+              iconKeys: _navKeys,
+            ),
+    );
+  }
 
   void _log(String message) {
     final enabled = ref.read(devToolsSettingsProvider).analyticsEnabled;
@@ -510,7 +517,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
-        ..showSnackBar(const SnackBar(content: Text('Tip: swipe from edge to go back')));
+        ..showSnackBar(
+          const SnackBar(content: Text('Tip: swipe from edge to go back')),
+        );
     });
     await prefs.setBool('back_hint_shown', true);
   }
@@ -535,7 +544,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     });
   }
 }
-
 
 class _FloatingNavBar extends StatelessWidget {
   final int currentIndex;
@@ -624,7 +632,6 @@ class _FloatingNavBar extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _NavItemData {
@@ -674,19 +681,25 @@ class _NavItemState extends State<_NavItem> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 240),
     );
-    _pulseScale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.12), weight: 55),
-      TweenSequenceItem(tween: Tween(begin: 1.12, end: 1.0), weight: 45),
-    ]).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeOutCubic));
+    _pulseScale =
+        TweenSequence<double>([
+          TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.12), weight: 55),
+          TweenSequenceItem(tween: Tween(begin: 1.12, end: 1.0), weight: 45),
+        ]).animate(
+          CurvedAnimation(parent: _pulseController, curve: Curves.easeOutCubic),
+        );
 
     _badgeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
     );
-    _badgeScale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.16), weight: 50),
-      TweenSequenceItem(tween: Tween(begin: 1.16, end: 1.0), weight: 50),
-    ]).animate(CurvedAnimation(parent: _badgeController, curve: Curves.easeOutCubic));
+    _badgeScale =
+        TweenSequence<double>([
+          TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.16), weight: 50),
+          TweenSequenceItem(tween: Tween(begin: 1.16, end: 1.0), weight: 50),
+        ]).animate(
+          CurvedAnimation(parent: _badgeController, curve: Curves.easeOutCubic),
+        );
     _lastBadgeCount = widget.badgeCount;
   }
 
@@ -737,7 +750,8 @@ class _NavItemState extends State<_NavItem> with TickerProviderStateMixin {
                 offset: widget.selected ? const Offset(0, -0.06) : Offset.zero,
                 child: AnimatedBuilder(
                   animation: _pulseScale,
-                  builder: (context, child) => Transform.scale(scale: _pulseScale.value, child: child),
+                  builder: (context, child) =>
+                      Transform.scale(scale: _pulseScale.value, child: child),
                   child: SizedBox(
                     width: 36,
                     height: 28,
@@ -746,17 +760,21 @@ class _NavItemState extends State<_NavItem> with TickerProviderStateMixin {
                       clipBehavior: Clip.none,
                       children: [
                         AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        height: 28,
-                        width: 36,
-                        decoration: BoxDecoration(
-                          color: widget.selected ? activeColor.withAlpha(28) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          height: 28,
+                          width: 36,
+                          decoration: BoxDecoration(
+                            color: widget.selected
+                                ? activeColor.withAlpha(28)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
                         ),
                         Icon(
-                          widget.selected ? widget.data.activeIcon : widget.data.icon,
+                          widget.selected
+                              ? widget.data.activeIcon
+                              : widget.data.icon,
                           color: iconColor,
                           size: 22,
                           key: widget.iconKey,
@@ -767,10 +785,15 @@ class _NavItemState extends State<_NavItem> with TickerProviderStateMixin {
                             top: -6,
                             child: AnimatedBuilder(
                               animation: _badgeScale,
-                              builder: (context, child) =>
-                                  Transform.scale(scale: _badgeScale.value, child: child),
+                              builder: (context, child) => Transform.scale(
+                                scale: _badgeScale.value,
+                                child: child,
+                              ),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.redAccent,
                                   borderRadius: BorderRadius.circular(10),
@@ -805,7 +828,9 @@ class _NavItemState extends State<_NavItem> with TickerProviderStateMixin {
                     widget.data.label,
                     style: widget.labelStyle?.copyWith(
                       color: iconColor,
-                      fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: widget.selected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
                       fontSize: 11,
                     ),
                   ),
@@ -818,7 +843,9 @@ class _NavItemState extends State<_NavItem> with TickerProviderStateMixin {
                 height: 3.5,
                 width: widget.selected ? 24 : 6,
                 decoration: BoxDecoration(
-                  color: widget.selected ? activeColor.withAlpha(180) : Colors.transparent,
+                  color: widget.selected
+                      ? activeColor.withAlpha(180)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -898,7 +925,8 @@ class _BottomNavTutorialOverlay extends StatefulWidget {
   });
 
   @override
-  State<_BottomNavTutorialOverlay> createState() => _BottomNavTutorialOverlayState();
+  State<_BottomNavTutorialOverlay> createState() =>
+      _BottomNavTutorialOverlayState();
 }
 
 class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
@@ -920,10 +948,14 @@ class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
     _pulse = Tween<double>(begin: 1.0, end: 1.12).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-    _cardFade = CurvedAnimation(parent: _pulseController, curve: const Interval(0.0, 0.2));
-    _cardSlide = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeOutCubic),
+    _cardFade = CurvedAnimation(
+      parent: _pulseController,
+      curve: const Interval(0.0, 0.2),
     );
+    _cardSlide = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _pulseController, curve: Curves.easeOutCubic),
+        );
   }
 
   @override
@@ -963,10 +995,8 @@ class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
                     position: _cardSlide,
                     child: AnimatedBuilder(
                       animation: _pulse,
-                      builder: (context, child) => Transform.scale(
-                        scale: _pulse.value,
-                        child: child,
-                      ),
+                      builder: (context, child) =>
+                          Transform.scale(scale: _pulse.value, child: child),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(22),
                         child: BackdropFilter(
@@ -976,7 +1006,9 @@ class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
                             decoration: BoxDecoration(
                               color: scheme.primary.withAlpha(235),
                               borderRadius: BorderRadius.circular(22),
-                              border: Border.all(color: Colors.white.withAlpha(40)),
+                              border: Border.all(
+                                color: Colors.white.withAlpha(40),
+                              ),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withAlpha(70),
@@ -1002,14 +1034,21 @@ class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
                                     ),
                                     const Spacer(),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: Colors.white.withAlpha(30),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
                                         '${widget.index + 1}/${widget.total}',
-                                        style: TextStyle(color: scheme.onPrimary.withAlpha(220)),
+                                        style: TextStyle(
+                                          color: scheme.onPrimary.withAlpha(
+                                            220,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -1017,19 +1056,34 @@ class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
                                 const SizedBox(height: 10),
                                 Text(
                                   widget.step.description,
-                                  style: TextStyle(color: scheme.onPrimary.withAlpha(230), height: 1.4),
+                                  style: TextStyle(
+                                    color: scheme.onPrimary.withAlpha(230),
+                                    height: 1.4,
+                                  ),
                                 ),
                                 const SizedBox(height: 14),
                                 Row(
                                   children: [
                                     TextButton(
                                       onPressed: widget.onSkip,
-                                      child: Text('SKIP', style: TextStyle(color: scheme.onPrimary.withAlpha(220))),
+                                      child: Text(
+                                        'SKIP',
+                                        style: TextStyle(
+                                          color: scheme.onPrimary.withAlpha(
+                                            220,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                     const Spacer(),
                                     TextButton(
                                       onPressed: widget.onNext,
-                                      child: Text(widget.step.cta, style: TextStyle(color: scheme.onPrimary)),
+                                      child: Text(
+                                        widget.step.cta,
+                                        style: TextStyle(
+                                          color: scheme.onPrimary,
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -1070,7 +1124,10 @@ class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
             ),
             child: Text(
               'Menyiapkan tutorial...',
-              style: TextStyle(color: scheme.onPrimary, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: scheme.onPrimary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ),
@@ -1084,45 +1141,54 @@ class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
         builder: (context, constraints) {
           final width = constraints.maxWidth;
           final bubbleWidth = math.min(320.0, width - 32);
-          final bubbleLeft = (center.dx - bubbleWidth / 2).clamp(16.0, width - bubbleWidth - 16.0);
+          final bubbleLeft = (center.dx - bubbleWidth / 2).clamp(
+            16.0,
+            width - bubbleWidth - 16.0,
+          );
           final bubbleAbove = target.top - 190 > 80;
-          final bubbleTop = bubbleAbove ? (target.top - 180) : (target.bottom + 14);
-          final arrowX = center.dx.clamp(bubbleLeft + 16, bubbleLeft + bubbleWidth - 16);
+          final bubbleTop = bubbleAbove
+              ? (target.top - 180)
+              : (target.bottom + 14);
+          final arrowX = center.dx.clamp(
+            bubbleLeft + 16,
+            bubbleLeft + bubbleWidth - 16,
+          );
           final arrowY = bubbleAbove ? bubbleTop + 150 : bubbleTop - 10;
 
           return Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    onTap: widget.onNext,
-                    behavior: HitTestBehavior.opaque,
-                    child: AnimatedBuilder(
-                      animation: _pulse,
-                      builder: (context, _) => CustomPaint(
-                        painter: _SpotlightPainter(
-                          center: center,
-                          radius: radius * _pulse.value,
-                          dimColor: Colors.black.withAlpha(150),
-                        ),
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: widget.onNext,
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedBuilder(
+                    animation: _pulse,
+                    builder: (context, _) => CustomPaint(
+                      painter: _SpotlightPainter(
+                        center: center,
+                        radius: radius * _pulse.value,
+                        dimColor: Colors.black.withAlpha(150),
                       ),
                     ),
                   ),
                 ),
+              ),
               Positioned(
                 left: center.dx - radius,
                 top: center.dy - radius,
                 child: AnimatedBuilder(
                   animation: _pulse,
-                  builder: (context, child) => Transform.scale(
-                    scale: _pulse.value,
-                    child: child,
-                  ),
+                  builder: (context, child) =>
+                      Transform.scale(scale: _pulse.value, child: child),
                   child: Container(
                     width: radius * 2,
                     height: radius * 2,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: scheme.primary.withAlpha(220), width: 2),
+                      border: Border.all(
+                        color: scheme.primary.withAlpha(220),
+                        width: 2,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: scheme.primary.withAlpha(140),
@@ -1139,7 +1205,10 @@ class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
                 top: arrowY,
                 child: CustomPaint(
                   size: const Size(16, 10),
-                  painter: _ArrowPainter(color: scheme.primary, pointDown: bubbleAbove),
+                  painter: _ArrowPainter(
+                    color: scheme.primary,
+                    pointDown: bubbleAbove,
+                  ),
                 ),
               ),
               Positioned(
@@ -1185,28 +1254,39 @@ class _BottomNavTutorialOverlayState extends State<_BottomNavTutorialOverlay>
                                   const Spacer(),
                                   Text(
                                     '${widget.index + 1}/${widget.total}',
-                                    style: const TextStyle(color: Colors.white70),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                    ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 widget.step.description,
-                                style: const TextStyle(color: Colors.white70, height: 1.4),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  height: 1.4,
+                                ),
                               ),
                               const SizedBox(height: 12),
                               Row(
                                 children: [
                                   TextButton(
                                     onPressed: widget.onSkip,
-                                    child: const Text('SKIP', style: TextStyle(color: Colors.white70)),
+                                    child: const Text(
+                                      'SKIP',
+                                      style: TextStyle(color: Colors.white70),
+                                    ),
                                   ),
                                   const Spacer(),
                                   TextButton(
                                     onPressed: widget.onNext,
                                     child: Text(
                                       widget.step.cta,
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1251,7 +1331,9 @@ class _SpotlightPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SpotlightPainter oldDelegate) {
-    return oldDelegate.center != center || oldDelegate.radius != radius || oldDelegate.dimColor != dimColor;
+    return oldDelegate.center != center ||
+        oldDelegate.radius != radius ||
+        oldDelegate.dimColor != dimColor;
   }
 }
 
