@@ -1036,15 +1036,28 @@ class _DailyCheckInCardState extends ConsumerState<_DailyCheckInCard>
                     Expanded(
                       child: Row(
                         children: [
-                          TweenAnimationBuilder<int>(
-                            key: _streakKey,
-                            tween: IntTween(begin: _fromStreak, end: _toStreak),
-                            duration: const Duration(milliseconds: 520),
-                            curve: Curves.easeOutCubic,
-                            builder: (context, value, _) => Text(
-                              '$value ',
-                              style: const TextStyle(fontWeight: FontWeight.w800),
-                            ),
+                          AnimatedBuilder(
+                            animation: _shimmer,
+                            builder: (context, _) {
+                              final alpha = 0.12 + (_shimmer.value * 0.18);
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: alpha),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: TweenAnimationBuilder<int>(
+                                  key: _streakKey,
+                                  tween: IntTween(begin: _fromStreak, end: _toStreak),
+                                  duration: const Duration(milliseconds: 520),
+                                  curve: Curves.easeOutCubic,
+                                  builder: (context, value, _) => Text(
+                                    '$value',
+                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                           Text(streakLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
                         ],

@@ -147,14 +147,18 @@ class _CinematicHeroBannerState extends State<_CinematicHeroBanner>
                 final offset = controller.hasClients ? controller.offset : 0.0;
                 final parallax = (offset / 240).clamp(-0.25, 0.25);
                 final blur = (offset / 100).clamp(0.0, 6.0);
+                final zoom = 1 + ((_glow.value - 0.5) * 0.04);
                 return Stack(
                   fit: StackFit.expand,
                   children: [
-                    Align(
-                      alignment: Alignment(0, -0.2 + parallax),
-                      child: Image.network(
-                        'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=1200&q=80',
-                        fit: BoxFit.cover,
+                    Transform.scale(
+                      scale: zoom,
+                      child: Align(
+                        alignment: Alignment(0, -0.2 + parallax),
+                        child: Image.network(
+                          'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=1200&q=80',
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                     BackdropFilter(
